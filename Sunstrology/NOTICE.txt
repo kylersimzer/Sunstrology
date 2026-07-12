@@ -1,0 +1,29 @@
+NOTICE
+
+Sunstrology — The Heliocentric Almanac is created by Kyler Simzer.
+
+MIT License allows free use (including commercial use) as long as the LICENSE
+and copyright notice are included with copies/substantial portions.
+
+Attribution request (not a license requirement):
+If you use this in a commercial product, project, or paid offering, please
+include a visible credit such as:
+"Sunstrology by Kyler Simzer"
+
+Contact: weworkfortheo@gmail.com
+Website: https://kylersimzer.com
+
+Data & Dependency Notice
+- three.js is used under the MIT License (© three.js authors).
+- Planetary elements are derived from JPL's published approximate Keplerian
+  elements; live observed records may be fetched at runtime from SILSO
+  (Royal Observatory of Belgium), NASA DONKI, and JPL Horizons. These data
+  sources are the property of their respective providers and are NOT covered
+  by this repo's MIT License.
+- Fonts (Archivo, Fraunces, IBM Plex Mono) are loaded from Google Fonts under
+  the SIL Open Font License.
+
+Content Notice
+Sunstrology is a symbolic/artistic instrument, not a predictive service.
+Positions are computed from real orbital mechanics; the stations, patterns,
+and readings are an invented interpretive layer.
