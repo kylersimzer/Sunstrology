@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sunstrology — brand</title>
+<link rel="icon" href="final/icons/favicon.svg" type="image/svg+xml">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root { --ink: 236, 235, 230; --fg: #ecebe6; --fg-2: rgba(var(--ink), .72); --fg-3: rgba(var(--ink), .48); --fg-4: rgba(var(--ink), .3); --line: rgba(var(--ink), .09); --line-2: rgba(var(--ink), .14); --bg-1: #08090a; --bg-2: #0f1011; --paper: #f2f1ec; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #000; color: var(--fg); font: 400 13px/1.55 Geist, Inter, system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+  .mono { font-family: 'Geist Mono', ui-monospace, monospace; }
+  header { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 10px; height: 52px; padding: 0 24px; background: rgba(0,0,0,.82); backdrop-filter: blur(12px); border-bottom: 1px solid var(--line); }
+  header img { width: 20px; height: 20px; }
+  header b { font-weight: 600; letter-spacing: .06em; }
+  header span { color: var(--fg-3); }
+  main { max-width: 1200px; margin: 0 auto; padding: 32px 24px 80px; }
+  h1 { font-size: 30px; letter-spacing: -.03em; font-weight: 600; margin: 0 0 8px; }
+  .lede { color: var(--fg-2); max-width: 64ch; font-size: 14px; margin: 0 0 28px; }
+  h2 { font: 500 11px 'Geist Mono', monospace; letter-spacing: .08em; text-transform: uppercase; color: var(--fg-3); margin: 44px 0 12px; display: flex; justify-content: space-between; }
+  h2 span { text-transform: none; letter-spacing: 0; color: var(--fg-4); }
+  .grid { display: grid; gap: 12px; }
+  .g3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .g2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .card { border: 1px solid var(--line); border-radius: 12px; background: var(--bg-1); overflow: hidden; }
+  .card .art { display: grid; place-items: center; padding: 28px; min-height: 200px; }
+  .card .art.paper { background: var(--paper); }
+  .card .meta { display: flex; justify-content: space-between; gap: 12px; padding: 10px 14px; border-top: 1px solid var(--line); font: 400 11px 'Geist Mono', monospace; color: var(--fg-3); }
+  .card .meta b { color: var(--fg); font-weight: 500; }
+  .card img.full, .card video { display: block; width: 100%; height: auto; }
+  .sizes { display: flex; align-items: flex-end; gap: 22px; }
+  .icons { display: flex; align-items: flex-end; gap: 18px; flex-wrap: wrap; }
+  .icons img { display: block; border-radius: 0; }
+  .icons figure { margin: 0; display: grid; gap: 6px; justify-items: center; font: 400 10px 'Geist Mono', monospace; color: var(--fg-4); }
+  .note { color: var(--fg-3); font-size: 12px; margin: 10px 0 0; max-width: 70ch; }
+  @media (max-width: 860px) { .g3, .g2 { grid-template-columns: 1fr; } main { padding: 24px 16px 60px; } }
+</style>
+</head>
+<body>
+<header><img src="final/logo/sunstrology-mark-white.svg" alt=""><b>SUNSTROLOGY</b><span>· brand · 01 Earth on the ring</span></header>
+<main>
+  <h1>The mark, the banners, the loops</h1>
+  <p class="lede">Built from 01, “Earth on the ring”: the Sun in the middle, you as the one dot going round it. One ink, white on black, the same rules as stems.fm and GODMIX. The banners show the real sky on 4 November 2026, the day v2 was made.</p>
+
+  <h2>Loops <span>MP4 1080 · GIF 420–540</span></h2>
+  <div class="grid g3">
+    <div class="card"><video src="final/loops/sunstrology-loop-orbit.mp4" autoplay loop muted playsinline></video><div class="meta"><b>Orbit</b><span>4 s · the mark, Earth going round</span></div></div>
+    <div class="card"><video src="final/loops/sunstrology-loop-eight-years.mp4" autoplay loop muted playsinline></video><div class="meta"><b>Eight years</b><span>16 s · Venus and Earth draw their figure</span></div></div>
+    <div class="card"><video src="final/loops/sunstrology-loop-stations.mp4" autoplay loop muted playsinline></video><div class="meta"><b>Twelve stations</b><span>12 s · one year, station by station</span></div></div>
+  </div>
+  <p class="note">Eight years: Venus goes round 13 times while Earth goes round 8, so a line joining them every twelve days traces a five-petalled figure, the real rhythm of the two planets. Mercury and Mars are rounded to whole turns so the loop closes.</p>
+
+  <h2>Banners <span>PNG + SVG</span></h2>
+  <div class="grid">
+    <div class="card"><img class="full" src="final/banners/sunstrology-banner-x-1500x500.png" alt="X header"><div class="meta"><b>X header</b><span>1500 × 500</span></div></div>
+    <div class="card"><img class="full" src="final/banners/sunstrology-banner-readme-1600x480.png" alt="README header"><div class="meta"><b>README header</b><span>1600 × 480</span></div></div>
+  </div>
+  <div class="grid g2" style="margin-top:12px">
+    <div class="card"><img class="full" src="final/banners/sunstrology-link-preview-1200x630.png" alt="Link preview"><div class="meta"><b>Link preview</b><span>1200 × 630 · og:image</span></div></div>
+    <div class="card"><img class="full" src="final/banners/sunstrology-banner-github-1280x640.png" alt="GitHub social preview"><div class="meta"><b>GitHub social preview</b><span>1280 × 640</span></div></div>
+  </div>
+
+  <h2>Lockup</h2>
+  <div class="grid g2">
+    <div class="card"><div class="art"><img src="final/logo/sunstrology-lockup-white-2x.png" width="305" alt="Lockup, white"></div><div class="meta"><b>White</b><span>on black</span></div></div>
+    <div class="card"><div class="art paper"><img src="final/logo/sunstrology-lockup-black-2x.png" width="305" alt="Lockup, black"></div><div class="meta"><b>Black</b><span>on paper</span></div></div>
+  </div>
+
+  <h2>Mark</h2>
+  <div class="grid g3">
+    <div class="card"><div class="art"><img src="final/logo/sunstrology-mark-white.svg" width="140" alt=""></div><div class="meta"><b>White</b><span>default</span></div></div>
+    <div class="card"><div class="art paper"><img src="final/logo/sunstrology-mark-black.svg" width="140" alt=""></div><div class="meta"><b>Black</b><span>paper</span></div></div>
+    <div class="card"><div class="art"><img src="final/loops/sunstrology-mark-orbit.svg" width="140" alt=""></div><div class="meta"><b>Animated SVG</b><span>no video needed</span></div></div>
+  </div>
+  <div class="card" style="margin-top:12px"><div class="art"><div class="sizes">
+    <img src="final/logo/sunstrology-mark-white.svg" width="16" alt=""><img src="final/logo/sunstrology-mark-white.svg" width="24" alt=""><img src="final/logo/sunstrology-mark-white.svg" width="32" alt=""><img src="final/logo/sunstrology-mark-white.svg" width="48" alt=""><img src="final/logo/sunstrology-mark-white.svg" width="64" alt=""><img src="final/logo/sunstrology-mark-white.svg" width="96" alt="">
+  </div></div><div class="meta"><b>Sizes</b><span>16 · 24 · 32 · 48 · 64 · 96</span></div></div>
+
+  <h2>Icons</h2>
+  <div class="card"><div class="art"><div class="icons">
+    <figure><img src="final/icons/icon-512.png" width="120" height="120" alt=""><figcaption>app 512</figcaption></figure>
+    <figure><img src="final/icons/icon-512-maskable.png" width="120" height="120" style="border-radius:50%" alt=""><figcaption>maskable</figcaption></figure>
+    <figure><img src="final/icons/apple-touch-icon.png" width="90" height="90" style="border-radius:20px" alt=""><figcaption>iOS 180</figcaption></figure>
+    <figure><img src="final/icons/x-profile-400x400.png" width="90" height="90" style="border-radius:50%" alt=""><figcaption>X profile</figcaption></figure>
+    <figure><img src="final/icons/favicon-32.png" width="32" height="32" alt=""><figcaption>32</figcaption></figure>
+    <figure><img src="final/icons/favicon-16.png" width="16" height="16" alt=""><figcaption>16</figcaption></figure>
+  </div></div><div class="meta"><b>App and browser icons</b><span>the white mark on a black tile</span></div></div>
+</main>
+</body>
+</html>

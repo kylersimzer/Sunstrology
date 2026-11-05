@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sunstrology — 50 marks</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* One visual world, like stems.fm and GODMIX: black, one off-white ink, hairlines. Layout: a sticky bar, a short note, a grid of 50 equal cards in two rounds, and a panel that opens one mark large. */
+:root {
+  color-scheme: dark;
+  --ink: 236, 235, 230;
+  --bg: #000;
+  --bg-1: #08090a;
+  --bg-2: #0f1011;
+  --bg-3: #16171a;
+  --fg: #ecebe6;
+  --fg-2: rgba(var(--ink), 0.72);
+  --fg-3: rgba(var(--ink), 0.48);
+  --fg-4: rgba(var(--ink), 0.3);
+  --line: rgba(var(--ink), 0.09);
+  --line-2: rgba(var(--ink), 0.14);
+  --line-3: rgba(var(--ink), 0.22);
+  --paper: #f2f1ec;
+  --paper-ink: #151515;
+  --sans: 'Geist', 'Inter', -apple-system, 'Segoe UI', system-ui, sans-serif;
+  --mono: 'Geist Mono', ui-monospace, 'SF Mono', 'Cascadia Mono', Consolas, monospace;
+  --ease: cubic-bezier(0.23, 1, 0.32, 1);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--fg); }
+body { font: 13px/1.5 var(--sans); -webkit-font-smoothing: antialiased; }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 1.5px solid rgba(255,255,255,.6); outline-offset: 2px; }
+
+header.bar {
+  position: sticky; top: 0; z-index: 5; height: 48px; padding: 0 20px;
+  display: flex; align-items: center; gap: 12px;
+  background: rgba(0,0,0,.82); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--line);
+}
+.brand { display: flex; align-items: center; gap: 9px; font-weight: 600; letter-spacing: -0.01em; font-size: 14px; }
+.brand svg { display: block; }
+.crumb { color: var(--fg-3); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.crumb b { color: var(--fg-2); font-weight: 500; }
+.bar .grow { flex: 1; }
+.picks { display: flex; align-items: center; gap: 8px; font-family: var(--mono); font-size: 12px; color: var(--fg-3); }
+.picks .list { color: var(--fg); }
+.btn {
+  height: 28px; padding: 0 10px; border-radius: 6px; border: 1px solid var(--line-2); background: var(--bg-2);
+  cursor: pointer; font-size: 12px; color: var(--fg-2); display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+  transition: background .1s, border-color .1s, color .1s;
+}
+.btn:hover { background: var(--bg-3); color: var(--fg); border-color: var(--line-3); }
+.btn[aria-pressed="true"] { background: var(--fg); color: #000; border-color: var(--fg); }
+
+main { max-width: 1240px; margin: 0 auto; padding: 36px 20px 80px; display: grid; gap: 28px; }
+.intro { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 24px; align-items: end; }
+.intro h1 { margin: 0 0 8px; font-size: 28px; font-weight: 600; letter-spacing: -0.03em; line-height: 1.15; text-wrap: balance; }
+.intro p { margin: 0; max-width: 62ch; color: var(--fg-2); font-size: 14px; }
+.steps { display: flex; gap: 0; font-family: var(--mono); font-size: 11px; color: var(--fg-3); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.steps span { padding: 7px 11px; border-right: 1px solid var(--line); white-space: nowrap; }
+.steps span:last-child { border-right: 0; }
+.steps .now { color: #000; background: var(--fg); }
+
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(214px, 1fr)); gap: 0; border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
+.grid > .card { border-right: 1px solid var(--line) !important; border-bottom: 1px solid var(--line) !important; }
+.round { grid-column: 1 / -1; display: flex; align-items: baseline; gap: 10px; padding: 22px 14px 12px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); background: var(--bg-1); font-family: var(--mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--fg-2); }
+.round span { color: var(--fg-4); letter-spacing: 0; text-transform: none; }
+.card { background: var(--bg); display: grid; grid-template-rows: auto 1fr auto; cursor: pointer; position: relative; transition: background .18s var(--ease); text-align: left; border: 0; padding: 0; }
+.card:hover { background: var(--bg-1); }
+.card .top { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px 0; font-family: var(--mono); font-size: 11px; color: var(--fg-4); }
+.card .star { width: 24px; height: 24px; border-radius: 6px; border: 0; background: none; color: var(--fg-4); cursor: pointer; display: grid; place-items: center; }
+.card .star:hover { color: var(--fg); background: var(--bg-3); }
+.card .star[aria-pressed="true"] { color: var(--fg); }
+.card .hero { display: grid; place-items: center; padding: 26px 0 22px; }
+.card .hero svg { width: 120px; height: 120px; display: block; }
+.card .meta { padding: 0 14px 14px; display: grid; gap: 10px; }
+.card .name { font-family: var(--mono); font-size: 12px; color: var(--fg); display: flex; gap: 8px; }
+.card .name i { font-style: normal; color: var(--fg-3); }
+.sizes { display: flex; align-items: center; gap: 12px; padding-top: 10px; border-top: 1px solid var(--line); }
+.sizes svg { display: block; flex: none; }
+.sizes .paper { margin-left: auto; width: 48px; height: 48px; border-radius: 8px; background: var(--paper); display: grid; place-items: center; flex: none; }
+.card.picked { background: var(--bg-1); }
+.card.picked::after { content: ''; position: absolute; inset: 0; box-shadow: inset 0 0 0 1px var(--line-3); pointer-events: none; }
+
+/* The panel: one mark large. */
+.scrim { position: fixed; inset: 0; background: rgba(0,0,0,.66); z-index: 20; display: none; }
+.scrim.open { display: block; }
+.panel {
+  position: fixed; z-index: 21; top: 0; right: 0; height: 100%; width: min(560px, 100%);
+  background: var(--bg-1); border-left: 1px solid var(--line-2); display: flex; flex-direction: column;
+  transform: translateX(100%); transition: transform .28s var(--ease); visibility: hidden;
+}
+.panel.open { transform: none; visibility: visible; }
+.panel .ph { height: 48px; padding: 0 12px 0 20px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--line); font-family: var(--mono); font-size: 12px; color: var(--fg-3); }
+.panel .ph .grow { flex: 1; }
+.panel .body { overflow: auto; padding: 20px; display: grid; gap: 20px; }
+.stage { aspect-ratio: 1; border: 1px solid var(--line); border-radius: 12px; display: grid; place-items: center; background: var(--bg); position: relative; overflow: hidden; }
+.stage.paper { background: var(--paper); }
+.stage svg { width: 62%; height: 62%; display: block; }
+.stage .grid24 { position: absolute; inset: 19%; background-image: linear-gradient(var(--line) 1px, transparent 1px), linear-gradient(90deg, var(--line) 1px, transparent 1px); background-size: calc(100% / 24) calc(100% / 24); pointer-events: none; opacity: 0; transition: opacity .18s; }
+.stage.paper .grid24 { background-image: linear-gradient(rgba(0,0,0,.08) 1px, transparent 1px), linear-gradient(90deg, rgba(0,0,0,.08) 1px, transparent 1px); }
+.stage.show-grid .grid24 { opacity: 1; }
+.ptitle { display: grid; gap: 4px; }
+.ptitle h2 { margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -0.02em; }
+.ptitle p { margin: 0; color: var(--fg-2); font-size: 14px; max-width: 60ch; }
+.tools { display: flex; flex-wrap: wrap; gap: 6px; }
+.ladder { display: flex; align-items: flex-end; gap: 18px; padding: 16px; border: 1px solid var(--line); border-radius: 12px; flex-wrap: wrap; }
+.ladder figure { margin: 0; display: grid; justify-items: center; gap: 6px; font-family: var(--mono); font-size: 10px; color: var(--fg-4); }
+.ladder svg { display: block; }
+.tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.tile { aspect-ratio: 1; border-radius: 22%; display: grid; place-items: center; border: 1px solid var(--line); }
+.tile svg { width: 56%; height: 56%; }
+.tile.black { background: #000; }
+.tile.paper { background: var(--paper); border-color: transparent; }
+.tile.round { border-radius: 50%; background: #000; }
+.label { font-family: var(--mono); font-size: 11px; color: var(--fg-4); text-transform: uppercase; letter-spacing: 0.06em; }
+.toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--fg); color: #000; padding: 7px 12px; border-radius: 8px; font-size: 12px; z-index: 30; opacity: 0; transition: opacity .18s; pointer-events: none; }
+.toast.on { opacity: 1; }
+
+/* Orbiting parts turn slowly in the panel when Animate is on. */
+.spin { transform-box: view-box; transform-origin: 12px 12px; }
+.animate .spin.s1 { animation: orbit 18s linear infinite; }
+.animate .spin.s2 { animation: orbit 34s linear infinite; }
+.animate .spin.s3 { animation: orbit 60s linear infinite; }
+@keyframes orbit { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .animate .spin { animation: none !important; } .panel { transition: none; } }
+
+@media (max-width: 720px) {
+  .intro { grid-template-columns: 1fr; }
+  .crumb .hide-sm { display: none; }
+  .picks .lab { display: none; }
+}
+@media (max-width: 480px) {
+  header.bar { padding: 0 14px; }
+  main { padding: 24px 16px 64px; }
+  .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .card .hero { padding: 16px 0 14px; }
+  .card .hero svg { width: 88px; height: 88px; }
+  .card .meta { padding: 0 10px 12px; }
+  .card .top { padding: 10px 10px 0; }
+  .sizes { gap: 8px; }
+  .sizes .s48, .sizes .paper { display: none; }
+  .intro h1 { font-size: 23px; }
+}
+</style>
+</head>
+<body>
+<header class="bar">
+  <div class="brand" id="brand"></div>
+  <div class="crumb"><span class="hide-sm">· marks </span>· <b>pick one</b></div>
+  <div class="grow"></div>
+  <div class="picks"><span class="lab">Shortlist</span><span class="list" id="pickList">none</span></div>
+  <button class="btn" id="copyPicks" type="button">Copy</button>
+</header>
+
+<main>
+  <section class="intro">
+    <div>
+      <h1>Fifty marks for a sun-centred almanac</h1>
+      <p>Each mark is drawn on the same 24 × 24 grid as the stems.fm and GODMIX marks, in one white ink with round caps. The all-white mark gets locked in first. The banners and animated loops are then built from the one you pick. Star the ones you like, open any mark to see it large, at small sizes and as an app icon, then send the numbers back. Round 2 (26–50) pushes into the Sun’s anatomy, letterforms, the app’s own views and bolder filled silhouettes.</p>
+    </div>
+    <div class="steps" aria-label="Order of work">
+      <span class="now">1 · White mark</span><span>2 · Lockup</span><span>3 · Banners</span><span>4 · Loops</span>
+    </div>
+  </section>
+  <section class="grid" id="grid" aria-label="The 50 marks"></section>
+</main>
+
+<div class="scrim" id="scrim"></div>
+<aside class="panel" id="panel" aria-hidden="true" aria-label="Mark detail">
+  <div class="ph">
+    <span id="pNum">01 / 25</span>
+    <span class="grow"></span>
+    <button class="btn" id="prev" type="button" aria-label="Previous mark">←</button>
+    <button class="btn" id="next" type="button" aria-label="Next mark">→</button>
+    <button class="btn" id="close" type="button" aria-label="Close">Esc</button>
+  </div>
+  <div class="body">
+    <div class="stage" id="stage"><div class="grid24"></div><div id="stageMark" style="display:contents"></div></div>
+    <div class="tools">
+      <button class="btn" id="tAnim" type="button" aria-pressed="true">Animate</button>
+      <button class="btn" id="tPaper" type="button" aria-pressed="false">On paper</button>
+      <button class="btn" id="tGrid" type="button" aria-pressed="false">24 grid</button>
+      <button class="btn" id="tStar" type="button" aria-pressed="false">☆ Shortlist</button>
+      <button class="btn" id="tCopy" type="button">Copy SVG</button>
+    </div>
+    <div class="ptitle"><h2 id="pName"></h2><p id="pIdea"></p></div>
+    <div>
+      <div class="label" style="margin-bottom:8px">Sizes</div>
+      <div class="ladder" id="ladder"></div>
+    </div>
+    <div>
+      <div class="label" style="margin-bottom:8px">As an icon</div>
+      <div class="tiles" id="tiles"></div>
+    </div>
+  </div>
+</aside>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+/*MARKS*/
+(() => {
+  const $ = id => document.getElementById(id);
+  const pad = n => String(n).padStart(2, '0');
+  const W = { ink: '#ffffff', bg: '#000000' };
+  const PAPER = { ink: '#151515', bg: '#f2f1ec' };
+  let picks = [];
+  try { picks = JSON.parse(localStorage.getItem('sun-marks-picks') || '[]'); } catch (e) {}
+  const save = () => { try { localStorage.setItem('sun-marks-picks', JSON.stringify(picks)); } catch (e) {} };
+
+  $('brand').innerHTML = markSVG(MARKS[0], { ...W, size: 18 }) + '<span>Sunstrology</span>';
+
+  // The grid.
+  const ROUNDS = { 1: ['Round 1 · 01–25', 'the first pass: orbits, stations, the seal, patterns'], 26: ['Round 2 · 26–50', 'the Sun’s anatomy, letterforms, the app’s views, bolder silhouettes'] };
+  $('grid').innerHTML = MARKS.map((m, i) => (ROUNDS[m.n] ? `<div class="round">${ROUNDS[m.n][0]}<span>${ROUNDS[m.n][1]}</span></div>` : '') + `
+    <div class="card" role="button" tabindex="0" data-i="${i}" aria-label="${pad(m.n)} ${m.name}">
+      <div class="top"><span>${pad(m.n)}</span><button class="star" type="button" data-star="${m.n}" aria-pressed="false" aria-label="Shortlist ${m.name}">☆</button></div>
+      <div class="hero">${markSVG(m, { ...W, size: 120 })}</div>
+      <div class="meta">
+        <div class="name"><i>${pad(m.n)}</i>${m.name}</div>
+        <div class="sizes">${markSVG(m, { ...W, size: 16 })}${markSVG(m, { ...W, size: 24 })}${markSVG(m, { ...W, size: 48, cls: 's48' })}<span class="paper">${markSVG(m, { ...PAPER, size: 30 })}</span></div>
+      </div>
+    </div>`).join('');
+
+  function renderPicks() {
+    picks.sort((a, b) => a - b);
+    $('pickList').textContent = picks.length ? picks.map(pad).join(', ') : 'none';
+    document.querySelectorAll('[data-star]').forEach(b => {
+      const on = picks.includes(+b.dataset.star);
+      b.setAttribute('aria-pressed', on); b.textContent = on ? '★' : '☆';
+      b.closest('.card').classList.toggle('picked', on);
+    });
+    if (cur != null) { const on = picks.includes(MARKS[cur].n); $('tStar').setAttribute('aria-pressed', on); $('tStar').textContent = on ? '★ Shortlisted' : '☆ Shortlist'; }
+  }
+  const toggle = n => { picks = picks.includes(n) ? picks.filter(x => x !== n) : [...picks, n]; save(); renderPicks(); };
+
+  // The panel.
+  let cur = null;
+  const opts = { anim: true, paper: false, grid: false };
+  function show(i) {
+    cur = (i + MARKS.length) % MARKS.length;
+    const m = MARKS[cur], c = opts.paper ? PAPER : W;
+    $('pNum').textContent = `${pad(m.n)} / ${MARKS.length}`;
+    $('pName').textContent = m.name;
+    $('pIdea').textContent = m.idea;
+    $('stageMark').innerHTML = markSVG(m, { ...c, size: 320, cls: opts.anim ? 'animate' : '' });
+    $('stage').classList.toggle('paper', opts.paper);
+    $('stage').classList.toggle('show-grid', opts.grid);
+    $('ladder').innerHTML = [12, 16, 20, 24, 32, 48, 64].map(s => `<figure>${markSVG(m, { ...W, size: s })}<figcaption>${s}</figcaption></figure>`).join('');
+    $('tiles').innerHTML = `<div class="tile black">${markSVG(m, W)}</div><div class="tile paper">${markSVG(m, PAPER)}</div><div class="tile round">${markSVG(m, W)}</div>`;
+    renderPicks();
+  }
+  function open(i) { show(i); $('panel').classList.add('open'); $('scrim').classList.add('open'); $('panel').setAttribute('aria-hidden', 'false'); $('close').focus(); }
+  function close() { $('panel').classList.remove('open'); $('scrim').classList.remove('open'); $('panel').setAttribute('aria-hidden', 'true'); const c = document.querySelector(`.card[data-i="${cur}"]`); cur = null; c && c.focus(); }
+
+  $('grid').addEventListener('click', e => {
+    const s = e.target.closest('[data-star]');
+    if (s) { e.stopPropagation(); toggle(+s.dataset.star); return; }
+    const c = e.target.closest('.card'); if (c) open(+c.dataset.i);
+  });
+  $('grid').addEventListener('keydown', e => {
+    const c = e.target.closest('.card'); if (!c || e.target.closest('[data-star]')) return;
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(+c.dataset.i); }
+  });
+  $('scrim').onclick = close; $('close').onclick = close;
+  $('prev').onclick = () => show(cur - 1); $('next').onclick = () => show(cur + 1);
+  document.addEventListener('keydown', e => {
+    if (cur == null) return;
+    if (e.key === 'Escape') close();
+    if (e.key === 'ArrowLeft') show(cur - 1);
+    if (e.key === 'ArrowRight') show(cur + 1);
+  });
+  const flip = (id, key) => $(id).onclick = () => { opts[key] = !opts[key]; $(id).setAttribute('aria-pressed', opts[key]); show(cur); };
+  flip('tAnim', 'anim'); flip('tPaper', 'paper'); flip('tGrid', 'grid');
+  $('tStar').onclick = () => toggle(MARKS[cur].n);
+
+  const toast = t => { const el = $('toast'); el.textContent = t; el.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => el.classList.remove('on'), 1600); };
+  async function copy(text, done) { try { await navigator.clipboard.writeText(text); toast(done); } catch (e) { toast('Copy was blocked by the browser'); } }
+  $('tCopy').onclick = () => copy(markSVG(MARKS[cur], W), `Copied the SVG for ${pad(MARKS[cur].n)}`);
+  $('copyPicks').onclick = () => copy(picks.length ? 'Sunstrology marks shortlist: ' + picks.map(n => `${pad(n)} ${MARKS[n - 1].name}`).join(', ') : 'Sunstrology marks: no shortlist yet', picks.length ? 'Shortlist copied' : 'Nothing starred yet');
+
+  renderPicks();
+})();
+</script>
+</body>
+</html>

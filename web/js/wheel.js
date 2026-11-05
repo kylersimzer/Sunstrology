@@ -1,0 +1,293 @@
+// Drawing: the wheel (the Sun's-eye view of the system) and the seal (a person's sky as a single figure).
+// One ink at different strengths, like stems.fm and GODMIX. Aspect types are told apart by line style, not colour.
+import { PLANETS, orbitPath, normDeg, D2R } from './astro.js';
+import { STATIONS, ROMAN, WORLDS } from './meaning.js';
+
+// 'even' spaces the orbits evenly, like an orrery (interpolating between semi-major axes, so ellipses keep their shape).
+const RUNGS = [[0, 0], [0.387, 1], [0.723, 2], [1, 3], [1.524, 4], [5.2, 5], [9.54, 6], [19.2, 7], [30.07, 8], [39.5, 9], [60, 10.6]];
+const even = r => {
+  for (let i = 1; i < RUNGS.length; i++) if (r <= RUNGS[i][0]) { const [a0, i0] = RUNGS[i - 1], [a1, i1] = RUNGS[i]; return 0.9 + i0 + (r - a0) / (a1 - a0) * (i1 - i0); }
+  return 11.5;
+};
+export const SCALES = {
+  even,
+  sqrt: r => Math.sqrt(r),
+  log: r => Math.log1p(r * 1.7),
+  true: r => r,
+};
+const RMAX = 46;
+
+export function ink() {
+  const cs = getComputedStyle(document.documentElement);
+  const rgb = cs.getPropertyValue('--ink').trim() || '236, 235, 230';
+  const bg = cs.getPropertyValue('--bg').trim() || '#000';
+  return { a: x => `rgba(${rgb}, ${x})`, solid: `rgb(${rgb})`, bg, light: document.documentElement.dataset.theme === 'light' };
+}
+
+const LINE = {
+  Merge: { dash: [], w: 1.4, a: 0.7 },
+  Signal: { dash: [1, 4], w: 1, a: 0.55 },
+  Friction: { dash: [], w: 1.25, a: 0.62 },
+  Flow: { dash: [], w: 0.8, a: 0.42 },
+  Mirror: { dash: [6, 5], w: 1, a: 0.55 },
+};
+export const lineStyle = t => LINE[t];
+
+const orbitCache = new Map();
+function orbitFor(p, jd) {
+  const key = p.code + ':' + Math.round(jd / 3650);
+  if (!orbitCache.has(key)) orbitCache.set(key, orbitPath(p, jd, p.code === 'PLU' ? 220 : 160));
+  return orbitCache.get(key);
+}
+
+/**
+ * Draw the wheel into a 2D context.
+ * opts: { chart, natal?, other?, scale, cx, cy, R, hover?, focus?, showAspects, showOrbits, showStations, labels, t }
+ * Returns the screen position of every drawn world, for hit-testing.
+ */
+export function drawWheel(g, o) {
+  const I = ink();
+  const { chart, cx, cy, R } = o;
+  const f = SCALES[o.scale] || SCALES.even;
+  const rIn = R * 0.83;                                 // outer edge of the system
+  const k = r => f(r) / f(RMAX) * rIn;
+  const P = (lon, rad) => [cx + rad * Math.cos(lon * D2R), cy - rad * Math.sin(lon * D2R)];
+  const pos = {};
+
+  // station ring
+  if (o.showStations !== false) {
+    const r0 = R * 0.88, r1 = R;
+    g.lineWidth = 1;
+    g.strokeStyle = I.a(0.14);
+    ring(g, cx, cy, r0); g.stroke();
+    ring(g, cx, cy, r1); g.stroke();
+    const st = chart.station;
+    for (let s = 0; s < 12; s++) {
+      const a0 = s * 30, a1 = a0 + 30;
+      if (s === st) {
+        g.fillStyle = I.a(0.07);
+        g.beginPath(); g.arc(cx, cy, r1, -a1 * D2R, -a0 * D2R); g.arc(cx, cy, r0, -a0 * D2R, -a1 * D2R, true); g.closePath(); g.fill();
+      }
+      const [x0, y0] = P(a0, r0), [x1, y1] = P(a0, r1);
+      g.strokeStyle = I.a(0.14); g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke();
+      if (o.labels !== false && R > 150) {
+        const mid = a0 + 15, rr = (r0 + r1) / 2;
+        const [lx, ly] = P(mid, rr);
+        g.save(); g.translate(lx, ly);
+        let rot = -mid * D2R + Math.PI / 2;
+        if (mid > 0 && mid < 180) rot += Math.PI;
+        g.rotate(rot);
+        g.fillStyle = s === st ? I.a(0.95) : I.a(0.42);
+        g.font = `500 ${Math.max(8, Math.min(10.5, R * 0.03))}px 'Geist Mono', ui-monospace, monospace`;
+        g.textAlign = 'center'; g.textBaseline = 'middle';
+        g.fillText(STATIONS[s].name.toUpperCase(), 0, 0);
+        g.restore();
+      }
+    }
+    // degree ticks inside the ring
+    g.strokeStyle = I.a(0.12);
+    for (let d = 0; d < 360; d += 5) {
+      const len = d % 30 === 0 ? 0 : d % 10 === 0 ? 5 : 2.5;
+      if (!len) continue;
+      const [a, b] = [P(d, r0), P(d, r0 - len)];
+      g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); g.stroke();
+    }
+  }
+
+  // the natal wheel, ghosted on the inside edge of the station ring
+  if (o.natal) {
+    const rr = R * 0.86;
+    o.natal.bodies.forEach(b => {
+      const [x, y] = P(b.lon, rr), [x2, y2] = P(b.lon, rr - 8);
+      g.strokeStyle = b.code === 'EAR' ? I.a(0.9) : I.a(0.45); g.lineWidth = b.code === 'EAR' ? 1.6 : 1;
+      g.beginPath(); g.moveTo(x, y); g.lineTo(x2, y2); g.stroke();
+    });
+  }
+
+  // orbits
+  if (o.showOrbits !== false) {
+    PLANETS.forEach(p => {
+      const pts = orbitFor(p, chart.jd);
+      g.beginPath();
+      pts.forEach((q, i) => {
+        const r = Math.hypot(q.x, q.y), lon = Math.atan2(q.y, q.x) * 180 / Math.PI;
+        const [x, y] = P(lon, k(r));
+        i ? g.lineTo(x, y) : g.moveTo(x, y);
+      });
+      g.strokeStyle = p.code === 'EAR' ? I.a(0.32) : I.a(o.focus && o.focus !== p.code ? 0.06 : 0.11);
+      g.lineWidth = p.code === 'EAR' ? 1.1 : 1;
+      g.stroke();
+    });
+  }
+
+  // positions
+  chart.bodies.forEach(b => { pos[b.code] = P(b.lon, k(b.r)); });
+
+  // aspects: the seal, drawn through the actual positions
+  if (o.showAspects !== false) {
+    chart.aspects.forEach(a => {
+      const st = LINE[a.type];
+      const dim = o.focus && a.a.code !== o.focus && a.b.code !== o.focus;
+      const [x1, y1] = pos[a.a.code], [x2, y2] = pos[a.b.code];
+      g.setLineDash(st.dash); g.lineWidth = st.w;
+      g.strokeStyle = I.a(dim ? st.a * 0.2 : st.a * (1 - a.orb / 9));
+      g.beginPath(); g.moveTo(x1, y1); g.lineTo(x2, y2); g.stroke();
+    });
+    g.setLineDash([]);
+  }
+
+  // second person's worlds (compare), as rings on their own orbits
+  if (o.other) {
+    o.other.bodies.forEach(b => {
+      const [x, y] = P(b.lon, k(b.r));
+      g.strokeStyle = I.a(b.code === 'EAR' ? 0.95 : 0.5); g.lineWidth = 1.2;
+      ring(g, x, y, b.code === 'EAR' ? 6.5 : Math.max(3, b.size * 0.9 + 1.5)); g.stroke();
+      if (b.code === 'EAR') {
+        g.beginPath(); g.moveTo(x - 3, y); g.lineTo(x + 3, y); g.moveTo(x, y - 3); g.lineTo(x, y + 3); g.stroke();
+        if (o.labels !== false && o.otherSub) subLabel(g, I, o.otherSub, x - 11, y + 1, R, 'right');
+      }
+    });
+  }
+
+  // the Sun
+  const sunR = Math.max(5, R * 0.022);
+  const glow = g.createRadialGradient(cx, cy, 0, cx, cy, sunR * 7);
+  glow.addColorStop(0, I.a(I.light ? 0.25 : 0.32)); glow.addColorStop(0.25, I.a(0.08)); glow.addColorStop(1, I.a(0));
+  g.fillStyle = glow; g.beginPath(); g.arc(cx, cy, sunR * 7, 0, Math.PI * 2); g.fill();
+  g.fillStyle = I.solid; g.beginPath(); g.arc(cx, cy, sunR, 0, Math.PI * 2); g.fill();
+  const t = o.t || 0;
+  g.strokeStyle = I.a(0.35); g.lineWidth = 1;
+  for (let i = 0; i < 12; i++) {
+    const a = i * 30 + t * 4;
+    const [x0, y0] = P(a, sunR + 3), [x1, y1] = P(a, sunR + (i % 3 === 0 ? 7 : 5));
+    g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke();
+  }
+
+  // worlds
+  chart.bodies.forEach(b => {
+    const [x, y] = pos[b.code];
+    const isE = b.code === 'EAR', hov = o.hover === b.code, dim = o.focus && o.focus !== b.code && !isE;
+    const r = Math.max(2.2, b.size * (R / 360) * 1.5);
+    g.fillStyle = I.bg; g.beginPath(); g.arc(x, y, r + 2.5, 0, Math.PI * 2); g.fill();
+    if (isE) {
+      g.fillStyle = I.solid; g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
+      g.strokeStyle = I.a(0.55); g.lineWidth = 1; ring(g, x, y, r + 5 + Math.sin(t * 2) * 0.8); g.stroke();
+    } else {
+      g.fillStyle = I.a(dim ? 0.35 : hov ? 1 : 0.82);
+      g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
+      if (b.code === 'SAT') { g.strokeStyle = I.a(dim ? 0.3 : 0.7); g.lineWidth = 1; g.beginPath(); g.ellipse(x, y, r + 4, (r + 4) * 0.36, -0.35, 0, Math.PI * 2); g.stroke(); }
+    }
+    if (hov) { g.strokeStyle = I.a(0.9); g.lineWidth = 1; ring(g, x, y, r + 8); g.stroke(); }
+    if (o.labels !== false) {
+      g.font = `${isE ? 600 : 500} ${R > 220 ? 11 : 9.5}px 'Geist Mono', ui-monospace, monospace`;
+      g.fillStyle = isE ? I.a(1) : I.a(dim ? 0.3 : 0.6);
+      g.textAlign = 'left'; g.textBaseline = 'middle';
+      g.fillText(isE ? 'EARTH' : b.code, x + r + 6, y - r - 3);
+      if (isE && o.earthSub) subLabel(g, I, o.earthSub, x + r + 6, y - r - 3 + (R > 220 ? 12 : 10.5), R);
+    }
+  });
+
+  return { pos, cx, cy, R };
+}
+
+// The person's name under Earth's label: same mono, toned down, so Earth stays Earth.
+function subLabel(g, I, text, x, y, R, align = 'left') {
+  g.font = `500 ${R > 220 ? 10 : 9}px 'Geist Mono', ui-monospace, monospace`;
+  g.fillStyle = I.a(0.42); g.textAlign = align; g.textBaseline = 'middle';
+  g.fillText(String(text).toUpperCase().slice(0, 16), x, y);
+}
+function ring(g, x, y, r) { g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); }
+
+/**
+ * The seal: a person's sky reduced to one figure. Nine points on a circle at each world's longitude,
+ * joined in order from the Sun outward, with Earth marked. Returns SVG markup.
+ */
+export function sealSVG(chart, { size = 24, stroke = 'currentColor', weight = 1.4, ringW = 1, dot = true } = {}) {
+  const c = size / 2, R = size * 0.38;
+  const pt = lon => [+(c + R * Math.cos(lon * D2R)).toFixed(2), +(c - R * Math.sin(lon * D2R)).toFixed(2)];
+  const pts = chart.bodies.map(b => pt(b.lon));
+  const d = pts.map(([x, y], i) => `${i ? 'L' : 'M'}${x} ${y}`).join('');
+  const e = pt(chart.earth.lon);
+  const sw = weight * size / 24;
+  return `<svg viewBox="0 0 ${size} ${size}" width="${size}" height="${size}" fill="none" aria-hidden="true">`
+    + `<circle cx="${c}" cy="${c}" r="${(size * 0.47).toFixed(2)}" stroke="${stroke}" stroke-opacity=".28" stroke-width="${ringW * size / 24}"/>`
+    + `<path d="${d}" stroke="${stroke}" stroke-width="${sw}" stroke-linejoin="round" stroke-linecap="round"/>`
+    + (dot ? `<circle cx="${e[0]}" cy="${e[1]}" r="${(size * 0.085).toFixed(2)}" fill="${stroke}"/>` : '')
+    + `</svg>`;
+}
+
+/** A tiny station glyph: the ring with its 30° sector drawn heavy. */
+export function stationSVG(s, size = 16) {
+  const c = size / 2, r = size * 0.38;
+  const p = a => [+(c + r * Math.cos(a * D2R)).toFixed(2), +(c - r * Math.sin(a * D2R)).toFixed(2)];
+  const [x0, y0] = p(s * 30), [x1, y1] = p(s * 30 + 30);
+  return `<svg viewBox="0 0 ${size} ${size}" width="${size}" height="${size}" fill="none" aria-hidden="true">`
+    + `<circle cx="${c}" cy="${c}" r="${r}" stroke="currentColor" stroke-opacity=".3" stroke-width="${size / 16}"/>`
+    + `<path d="M${x0} ${y0}A${r} ${r} 0 0 0 ${x1} ${y1}" stroke="currentColor" stroke-width="${size / 8}" stroke-linecap="round"/>`
+    + `<circle cx="${c}" cy="${c}" r="${size / 12}" fill="currentColor"/></svg>`;
+}
+
+/** The poster: a 1080 × 1350 black-and-white print of one person's sky. */
+export function drawPoster(g, W, H, { person, chart, theme = 'dark' }) {
+  const dark = theme === 'dark';
+  const inkRGB = dark ? '236, 235, 230' : '21, 21, 21';
+  const A = x => `rgba(${inkRGB}, ${x})`;
+  g.fillStyle = dark ? '#000' : '#F2F1EC'; g.fillRect(0, 0, W, H);
+  const cx = W / 2, cy = H * 0.43, R = W * 0.4;
+  const P = (lon, r) => [cx + r * Math.cos(lon * D2R), cy - r * Math.sin(lon * D2R)];
+
+  // fine station ring
+  g.strokeStyle = A(0.16); g.lineWidth = 1.5;
+  [R, R * 0.93].forEach(r => { g.beginPath(); g.arc(cx, cy, r, 0, Math.PI * 2); g.stroke(); });
+  for (let s = 0; s < 12; s++) {
+    const [a, b] = [P(s * 30, R * 0.93), P(s * 30, R)];
+    g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); g.stroke();
+    const [lx, ly] = P(s * 30 + 15, R * 0.965);
+    g.save(); g.translate(lx, ly); let rot = -(s * 30 + 15) * D2R + Math.PI / 2; if (s * 30 + 15 < 180) rot += Math.PI; g.rotate(rot);
+    g.fillStyle = s === chart.station ? A(1) : A(0.4); g.font = `500 15px 'Geist Mono', monospace`; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText(ROMAN[s], 0, 0); g.restore();
+  }
+  for (let d = 0; d < 360; d += 2) {
+    const len = d % 10 === 0 ? 10 : 5; const [a, b] = [P(d, R * 0.93), P(d, R * 0.93 - len)];
+    g.strokeStyle = A(d % 10 === 0 ? 0.3 : 0.14); g.lineWidth = 1; g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); g.stroke();
+  }
+
+  // orbits as perfect rings (the poster is an emblem, not a map), worlds on them
+  const rr = i => R * (0.16 + i * 0.085);
+  chart.bodies.forEach((b, i) => { g.strokeStyle = A(b.code === 'EAR' ? 0.4 : 0.12); g.lineWidth = 1.2; g.beginPath(); g.arc(cx, cy, rr(i), 0, Math.PI * 2); g.stroke(); });
+  const pos = chart.bodies.map((b, i) => P(b.lon, rr(i)));
+  // seal path through the worlds
+  g.strokeStyle = A(0.9); g.lineWidth = 2.2; g.lineJoin = 'round';
+  g.beginPath(); pos.forEach(([x, y], i) => i ? g.lineTo(x, y) : g.moveTo(x, y)); g.stroke();
+  // aspect hairlines
+  chart.aspects.forEach(a => {
+    const i = chart.bodies.indexOf(a.a), j = chart.bodies.indexOf(a.b), st = LINE[a.type];
+    g.setLineDash(st.dash.map(x => x * 2)); g.strokeStyle = A(st.a * 0.7); g.lineWidth = st.w * 1.4;
+    g.beginPath(); g.moveTo(...pos[i]); g.lineTo(...pos[j]); g.stroke();
+  });
+  g.setLineDash([]);
+  // Sun
+  g.fillStyle = A(1); g.beginPath(); g.arc(cx, cy, 13, 0, Math.PI * 2); g.fill();
+  for (let i = 0; i < 12; i++) { const [a, b] = [P(i * 30, 22), P(i * 30, i % 3 ? 29 : 34)]; g.strokeStyle = A(0.7); g.lineWidth = 2; g.lineCap = 'round'; g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); g.stroke(); }
+  chart.bodies.forEach((b, i) => {
+    const [x, y] = pos[i], isE = b.code === 'EAR';
+    g.fillStyle = dark ? '#000' : '#F2F1EC'; g.beginPath(); g.arc(x, y, isE ? 14 : 10, 0, Math.PI * 2); g.fill();
+    g.fillStyle = A(1); g.beginPath(); g.arc(x, y, isE ? 8 : 5.5, 0, Math.PI * 2); g.fill();
+    if (isE) { g.strokeStyle = A(0.8); g.lineWidth = 1.5; g.beginPath(); g.arc(x, y, 15, 0, Math.PI * 2); g.stroke(); }
+  });
+
+  // type
+  const st = STATIONS[chart.station];
+  const y0 = H * 0.82;
+  g.textAlign = 'center'; g.fillStyle = A(1);
+  g.font = `600 64px Geist, Inter, sans-serif`;
+  if ('letterSpacing' in g) g.letterSpacing = '-2px';
+  g.fillText(st.name, cx, y0);
+  if ('letterSpacing' in g) g.letterSpacing = '0px';
+  g.font = `500 20px 'Geist Mono', monospace`; g.fillStyle = A(0.55);
+  g.fillText(`STATION ${ROMAN[chart.station]}  ·  ${st.gloss.toUpperCase()}  ·  ${chart.pattern.toUpperCase()}`, cx, y0 + 46);
+  g.font = `500 20px 'Geist Mono', monospace`; g.fillStyle = A(0.8);
+  g.fillText(`${person.name.toUpperCase()}  ·  EARTH ${chart.earth.lon.toFixed(1)}°`, cx, y0 + 84);
+  g.font = `500 16px 'Geist Mono', monospace`; g.fillStyle = A(0.35);
+  g.fillText('SUNSTROLOGY · THE SKY FROM THE SUN', cx, H - 52);
+}
