@@ -1,0 +1,17 @@
+# Netlify settings for sunstrology.com. The site is plain files in web/; there is no build step.
+[build]
+  publish = "web"
+
+# The app's code and pages: always check for a newer copy, so updates show on the next load.
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+
+# Icons and images change rarely: let browsers keep them for a day.
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=86400"
