@@ -4,6 +4,7 @@
 import { PLANETS, orbitPath, D2R } from './astro.js';
 import { STATIONS } from './meaning.js';
 import { SCALES } from './wheel.js';
+import { WANDERERS, wandererAt, PROBES, probeAt, moonSystems, MOON_NAMES, MOON_ORBITS } from './objects.js';
 
 const THREE_URL = 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
 let THREE = null;
@@ -147,6 +148,53 @@ export async function createTelescope(wrap, { onHover } = {}) {
   });
   T.otherEarth = sprite(ringTex(0.9, 5), 0.05, 0.05, false, 1, true); T.otherEarth.visible = false; scene.add(T.otherEarth);
 
+  /* comets and asteroids: small lit markers with name tags; comets trail a tail away from the Sun */
+  const wandGroup = new THREE.Group(); scene.add(wandGroup);
+  const wands = WANDERERS.map(w => {
+    const com = w.t === 'com';
+    const mesh = new THREE.Mesh(new THREE.SphereGeometry(com ? 0.7 : 0.6, 10, 8), new THREE.MeshBasicMaterial({ color: com ? 0xdedcd6 : 0xaeaca6 }));
+    const hit = new THREE.Mesh(new THREE.SphereGeometry(4, 6, 4), new THREE.MeshBasicMaterial({ visible: false })); hit.userData.code = 'W:' + w.n; mesh.add(hit); hits.push(hit);
+    const pip = sprite(PIP, 0.007, 0.007, true, 0.7, true);
+    const label = sprite(textTex([{ text: w.n.toUpperCase(), size: 22, y: 26, color: ink(0.6) }]), 0.16, 0.04, false, 0.5, true); label.center.set(0.5, -0.3);
+    let tail = null;
+    if (com) { tail = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]), new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.45, depthWrite: false })); tail.frustumCulled = false; wandGroup.add(tail); }
+    wandGroup.add(mesh, pip, label);
+    return { w, mesh, pip, label, tail };
+  });
+
+  /* the three spacecraft leaving: distances true, escape directions approximate */
+  const probeGroup = new THREE.Group(); scene.add(probeGroup);
+  const probes = PROBES.map(p => {
+    const mesh = new THREE.Mesh(new THREE.OctahedronGeometry(0.9), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+    const hit = new THREE.Mesh(new THREE.SphereGeometry(5, 6, 4), new THREE.MeshBasicMaterial({ visible: false })); hit.userData.code = 'P:' + p.n; mesh.add(hit); hits.push(hit);
+    const pip = sprite(PIP, 0.008, 0.008, true, 0.9, true);
+    const label = sprite(textTex([{ text: p.n.toUpperCase(), size: 22, y: 26, color: ink(0.75) }]), 0.16, 0.04, false, 0.7, true); label.center.set(0.5, -0.3);
+    probeGroup.add(mesh, pip, label);
+    return { p, mesh, pip, label };
+  });
+
+  /* moons: true bearings and orbit planes, radii magnified (each moon a few host-radii out) */
+  const moonGroups = {};
+  Object.keys(MOON_NAMES).forEach(code => {
+    const host = bodies[code], grp = new THREE.Group(); grp.userData.subs = [];
+    MOON_NAMES[code].forEach((n, i) => {
+      const R = host.size * MOON_ORBITS[code][i], sub = new THREE.Group();
+      sub.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(circlePts(R, 64)), new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.1 })));
+      const mm = new THREE.Mesh(new THREE.SphereGeometry(Math.max(0.22, host.size * 0.09), 14, 10), new THREE.MeshLambertMaterial({ color: 0xcfcdc6 }));
+      const lbl = sprite(textTex([{ text: n.toUpperCase(), size: 22, y: 26, color: ink(0.6) }]), 0.13, 0.0325, false, 0.75, true); lbl.center.set(0.5, -0.4); lbl.visible = false;
+      sub.add(mm, lbl); sub.userData = { mesh: mm, R, label: lbl };
+      grp.add(sub); grp.userData.subs.push(sub);
+    });
+    grp.userData.near = host.size * 26;
+    scene.add(grp); moonGroups[code] = grp;
+  });
+
+  /* the retrograde illusion: rings on worlds that would seem to go backward from Earth, and Earth's sightlines to them */
+  const retroRings = {};
+  PLANETS.forEach(p => { if (p.code === 'EAR') return; const r = sprite(ringTex(0.55, 4), 0.034, 0.034, false, 1, true); r.visible = false; scene.add(r); retroRings[p.code] = r; });
+  const sight = new THREE.LineSegments(new THREE.BufferGeometry(), new THREE.LineDashedMaterial({ color: 0xffffff, transparent: true, opacity: 0.35, dashSize: 2, gapSize: 3, depthWrite: false }));
+  sight.frustumCulled = false; scene.add(sight);
+
   function buildStatic() {
     T.unit = 400 / f()(RMAX);
     dispose(grid);
@@ -173,7 +221,7 @@ export async function createTelescope(wrap, { onHover } = {}) {
     T.orbitKey = T.scale + ':' + Math.round(jd / 3650);
   }
 
-  function sync(chart, { natal = null, other = null, scale = 'even', showAspects = true, focus = null, earthSub = null, otherSub = null } = {}) {
+  function sync(chart, { natal = null, other = null, scale = 'even', showAspects = true, focus = null, earthSub = null, otherSub = null, moons = true, wanderers = true, probes: showProbes = true, retro = false } = {}) {
     if (scale !== T.scale) { T.scale = scale; buildStatic(); }
     if (T.orbitKey !== T.scale + ':' + Math.round(chart.jd / 3650)) buildOrbits(chart.jd);
     T.chart = chart;
@@ -218,6 +266,45 @@ export async function createTelescope(wrap, { onHover } = {}) {
         aspects.add(seg);
       });
     }
+    // comets and asteroids
+    wandGroup.visible = wanderers;
+    if (wanderers) wands.forEach(it => {
+      const s = wandererAt(it.w, chart.jd), v = P3(s.x, s.y, s.z);
+      const show = s.r <= RMAX * 1.3;
+      it.mesh.visible = it.pip.visible = it.label.visible = show; if (it.tail) it.tail.visible = show;
+      if (!show) return;
+      it.mesh.position.copy(v); it.pip.position.copy(v); it.label.position.copy(v);
+      if (it.tail) { const dir = v.clone().normalize().multiplyScalar(Math.min(30, Math.max(4, 22 / (s.r * s.r)))); const a = it.tail.geometry.attributes.position; a.setXYZ(0, v.x, v.y, v.z); a.setXYZ(1, v.x + dir.x, v.y + dir.y, v.z + dir.z); a.needsUpdate = true; }
+    });
+    // spacecraft
+    probeGroup.visible = showProbes;
+    if (showProbes) probes.forEach(it => {
+      const s = probeAt(it.p, chart.jd); it.mesh.visible = it.pip.visible = it.label.visible = !!s;
+      if (!s) return;
+      const v = P3(s.x, s.y, s.z); it.mesh.position.copy(v); it.pip.position.copy(v); it.label.position.copy(v);
+    });
+    // moons
+    const SYS = moons ? moonSystems(chart) : null;
+    Object.entries(moonGroups).forEach(([code, grp]) => {
+      grp.visible = moons; if (!moons) return;
+      grp.position.copy(bodies[code].mesh.position);
+      grp.userData.subs.forEach((sub, i) => {
+        const st = SYS[code][i];
+        const X = new THREE.Vector3(st.p1[0], st.p1[2], -st.p1[1]), Z = new THREE.Vector3(st.p2[0], st.p2[2], -st.p2[1]);
+        const Y = new THREE.Vector3().crossVectors(Z, X);
+        sub.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(X, Y, Z));
+        const cu = st.v[0] * st.p1[0] + st.v[1] * st.p1[1] + st.v[2] * st.p1[2], su = st.v[0] * st.p2[0] + st.v[1] * st.p2[1] + st.v[2] * st.p2[2];
+        sub.userData.mesh.position.set(cu * sub.userData.R, 0, su * sub.userData.R);
+        sub.userData.label.position.copy(sub.userData.mesh.position);
+      });
+    });
+    // the retrograde illusion
+    const e = bodies.EAR.mesh.position, segs = [];
+    Object.entries(retroRings).forEach(([code, r]) => {
+      r.visible = retro && chart.retro.has(code);
+      if (r.visible) { r.position.copy(bodies[code].mesh.position); segs.push(e.clone(), bodies[code].mesh.position.clone()); }
+    });
+    sight.geometry.dispose(); sight.geometry = new THREE.BufferGeometry().setFromPoints(segs); if (segs.length) sight.computeLineDistances();
     // the lit station is Earth's
     stations.children.forEach(o => { if (o.userData.station != null) o.material.opacity = o.userData.station === chart.station ? 1 : 0.55; });
     T.focus = focus;
@@ -289,7 +376,9 @@ export async function createTelescope(wrap, { onHover } = {}) {
   function hover(e, tap = false) {
     const r = el.getBoundingClientRect();
     ray.setFromCamera({ x: (e.clientX - r.left) / r.width * 2 - 1, y: -((e.clientY - r.top) / r.height * 2 - 1) }, camera);
-    const h = ray.intersectObjects(hits, false);
+    // only things that are showing can be hovered (hidden layers keep their hit spheres)
+    const shown = o => { for (let q = o.parent; q; q = q.parent) if (!q.visible) return false; return true; };
+    const h = ray.intersectObjects(hits, false).filter(x => shown(x.object));
     const code = h.length ? h[0].object.userData.code : null;
     T.hover = code;
     el.classList.toggle('hovering', !!code);
@@ -341,6 +430,9 @@ export async function createTelescope(wrap, { onHover } = {}) {
     T.halo.material.opacity = Math.max(0, Math.min(1, (sd - 14) / 90));
     T.corona.material.opacity = Math.max(0, Math.min(1, (sd - 30) / 200));
     if (!still) T.corona.material.rotation += 0.0008;
+    wands.forEach(it => { if (!it.label.visible) return; const d = cam.pos.distanceTo(it.mesh.position); it.label.material.opacity = (T.hover === 'W:' + it.w.n ? 1 : Math.max(0, Math.min(0.55, 1.1 - d / 500))) * (T.hover && T.hover !== 'W:' + it.w.n ? 0.4 : 1); it.pip.material.opacity = Math.max(0, Math.min(0.7, d / 200 - 0.15)); });
+    probes.forEach(it => { if (!it.label.visible) return; it.label.material.opacity = T.hover === 'P:' + it.p.n ? 1 : 0.6; });
+    for (const code in moonGroups) { const grp = moonGroups[code]; if (!grp.visible) continue; const near = cam.pos.distanceTo(grp.position) < grp.userData.near; grp.userData.subs.forEach(sub => { sub.userData.label.visible = near; }); }
     for (const code in bodies) {
       const o = bodies[code];
       if (!still) o.mesh.rotation.y += 0.0016;

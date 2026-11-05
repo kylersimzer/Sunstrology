@@ -36,14 +36,14 @@
     </a>
     <nav class="nav" aria-label="Views">
       <a href="#/sky" data-view="sky"><i data-ico="sky"></i>Today<kbd>1</kbd></a>
-      <a href="#/chart" data-view="chart"><i data-ico="chart"></i>Birth chart<kbd>2</kbd></a>
+      <a href="#/chart" data-view="chart"><i data-ico="chart"></i>Your birth chart<kbd>2</kbd></a>
       <a href="#/pair" data-view="pair"><i data-ico="pair"></i>Pair<kbd>3</kbd></a>
       <a href="#/telescope" data-view="telescope"><i data-ico="scope"></i>Telescope<kbd>4</kbd></a>
       <a href="#/figures" data-view="figures"><i data-ico="figures"></i>Figures<kbd>5</kbd></a>
       <a href="#/oracle" data-view="oracle"><i data-ico="oracle"></i>Oracle<kbd>6</kbd></a>
       <a href="#/poster" data-view="poster"><i data-ico="poster"></i>Poster<kbd>7</kbd></a>
     </nav>
-    <div class="side-head"><span>PEOPLE</span><button class="icon-btn" id="addPerson" title="Add a person" aria-label="Add a person"><i data-ico="plus"></i></button></div>
+    <div class="side-head"><span>PEOPLE</span><button class="add-bday" id="addPerson" title="Add a birthday"><i data-ico="plus"></i>Add birthday</button></div>
     <ul class="people" id="people"></ul>
     <div class="side-foot">
       <button class="icon-btn" id="themeBtn" title="Light / dark" aria-label="Toggle light and dark"><i data-ico="theme"></i></button>
@@ -79,14 +79,26 @@
           <div class="seg seg-sm" id="scaleSeg" role="group" aria-label="Distance scale">
             <button data-scale="even" class="on" title="Orbits evenly spaced">even</button><button data-scale="sqrt" title="Square-root distance">√</button><button data-scale="log">log</button><button data-scale="true">true</button>
           </div>
-          <button class="chip" id="aspToggle" aria-pressed="true">Lines</button>
+          <div class="layers">
+            <button class="chip" id="layersBtn" aria-haspopup="true" aria-expanded="false">Layers</button>
+            <div class="layers-menu" id="layersMenu" hidden>
+              <label><input type="checkbox" data-layer="aspects" checked><span>Aspect lines</span><kbd>L</kbd></label>
+              <label><input type="checkbox" data-layer="moons" checked><span>Moons</span></label>
+              <label><input type="checkbox" data-layer="wanderers" checked><span>Comets and asteroids</span></label>
+              <label><input type="checkbox" data-layer="probes" checked><span>Spacecraft</span></label>
+              <label><input type="checkbox" data-layer="retro"><span>Retrograde illusion</span></label>
+            </div>
+          </div>
         </div>
         <div class="legend mono" id="legend">
           <span><svg width="22" height="6"><line x1="1" y1="3" x2="21" y2="3" stroke="currentColor" stroke-width="1"/></svg>Flow</span>
           <span><svg width="22" height="6"><line x1="1" y1="3" x2="21" y2="3" stroke="currentColor" stroke-width="1.6"/></svg>Friction</span>
           <span><svg width="22" height="6"><line x1="1" y1="3" x2="21" y2="3" stroke="currentColor" stroke-dasharray="5 4"/></svg>Mirror</span>
           <span><svg width="22" height="6"><line x1="1" y1="3" x2="21" y2="3" stroke="currentColor" stroke-dasharray="1 3" stroke-linecap="round"/></svg>Signal</span>
+          <span><svg width="10" height="10"><rect x="2.6" y="2.6" width="4.8" height="4.8" transform="rotate(45 5 5)" fill="currentColor"/></svg>Asteroid</span>
+          <span><svg width="16" height="8"><line x1="4" y1="4" x2="15" y2="4" stroke="currentColor" stroke-opacity=".5" stroke-width="1.4"/><circle cx="4" cy="4" r="2" fill="currentColor"/></svg>Comet</span>
         </div>
+        <button class="add-chip" id="addChip" data-act="add" hidden><i data-ico="plus"></i>Add your birthday</button>
         <div class="tip mono" id="tip" hidden></div>
       </div>
       <aside class="inspector" id="inspector"></aside>
@@ -121,7 +133,7 @@
   <!-- tabs (mobile) -->
   <nav class="tabs" aria-label="Views">
     <a href="#/sky" data-view="sky"><i data-ico="sky"></i><span>Today</span></a>
-    <a href="#/chart" data-view="chart"><i data-ico="chart"></i><span>Chart</span></a>
+    <a href="#/chart" data-view="chart"><i data-ico="chart"></i><span>Your chart</span></a>
     <a href="#/pair" data-view="pair"><i data-ico="pair"></i><span>Pair</span></a>
     <a href="#/telescope" data-view="telescope"><i data-ico="scope"></i><span>3D</span></a>
     <a href="#/figures" data-view="figures"><i data-ico="figures"></i><span>Figures</span></a>
@@ -133,7 +145,7 @@
 <dialog class="dlg" id="personDlg">
   <form method="dialog" id="personForm" class="dlg-body">
     <div class="dlg-mark" id="dlgMark"></div>
-    <h2 id="personTitle">Your birth moment</h2>
+    <h2 id="personTitle">Your birthday</h2>
     <p class="muted">Everything is computed in your browser and stays on this device.</p>
     <label class="field"><span>Name</span><input name="name" required maxlength="40" placeholder="You" autocomplete="off"></label>
     <div class="row2">

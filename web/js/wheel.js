@@ -2,6 +2,7 @@
 // One ink at different strengths, like stems.fm and GODMIX. Aspect types are told apart by line style, not colour.
 import { PLANETS, orbitPath, normDeg, D2R } from './astro.js';
 import { STATIONS, ROMAN, WORLDS } from './meaning.js';
+import { WANDERERS, wandererAt, PROBES, probeAt, moonSystems } from './objects.js';
 
 // 'even' spaces the orbits evenly, like an orrery (interpolating between semi-major axes, so ellipses keep their shape).
 const RUNGS = [[0, 0], [0.387, 1], [0.723, 2], [1, 3], [1.524, 4], [5.2, 5], [9.54, 6], [19.2, 7], [30.07, 8], [39.5, 9], [60, 10.6]];
@@ -144,8 +145,72 @@ export function drawWheel(g, o) {
       ring(g, x, y, b.code === 'EAR' ? 6.5 : Math.max(3, b.size * 0.9 + 1.5)); g.stroke();
       if (b.code === 'EAR') {
         g.beginPath(); g.moveTo(x - 3, y); g.lineTo(x + 3, y); g.moveTo(x, y - 3); g.lineTo(x, y + 3); g.stroke();
-        if (o.labels !== false && o.otherSub) subLabel(g, I, o.otherSub, x - 11, y + 1, R, 'right');
+        if (o.labels !== false) {
+          g.font = `600 ${R > 220 ? 11 : 9.5}px 'Geist Mono', ui-monospace, monospace`;
+          g.fillStyle = I.a(1); g.textAlign = 'right'; g.textBaseline = 'middle';
+          g.fillText('EARTH', x - 11, y - 6);
+          if (o.otherSub) subLabel(g, I, o.otherSub, x - 11, y - 6 + (R > 220 ? 12 : 10.5), R, 'right');
+        }
       }
+    });
+  }
+
+  // the retrograde illusion: from Earth these worlds would seem to slide backward (from the Sun, nothing does)
+  if (o.retro && chart.retro.size) {
+    const [ex, ey] = pos.EAR;
+    g.setLineDash([2, 4]); g.lineWidth = 1; g.strokeStyle = I.a(0.38);
+    chart.retro.forEach(code => { const [x, y] = pos[code]; g.beginPath(); g.moveTo(ex, ey); g.lineTo(x, y); g.stroke(); });
+    g.setLineDash([]);
+  }
+
+  // comets and asteroids, on their own two-body tracks
+  if (o.wanderers) {
+    const small = R < 220;
+    WANDERERS.forEach(w => {
+      const s = wandererAt(w, chart.jd);
+      if (s.r > RMAX) return;
+      const [x, y] = P(s.lon, k(s.r)), key = 'W:' + w.n, hov = o.hover === key;
+      if (w.t === 'com') {
+        // the tail points away from the Sun, longer the closer the comet is
+        const d = Math.hypot(x - cx, y - cy) || 1, ux = (x - cx) / d, uy = (y - cy) / d;
+        const dl = Math.min(28, Math.max(5, 14 / (s.r * s.r))) * Math.max(0.8, R / 300);
+        const gr = g.createLinearGradient(x, y, x + ux * dl, y + uy * dl); gr.addColorStop(0, I.a(0.7)); gr.addColorStop(1, I.a(0));
+        g.strokeStyle = gr; g.lineWidth = 1.4; g.beginPath(); g.moveTo(x, y); g.lineTo(x + ux * dl, y + uy * dl); g.stroke();
+        g.fillStyle = I.a(hov ? 1 : 0.85); g.beginPath(); g.arc(x, y, 1.9, 0, Math.PI * 2); g.fill();
+      } else {
+        g.fillStyle = I.a(hov ? 1 : 0.7);
+        g.save(); g.translate(x, y); g.rotate(Math.PI / 4); g.fillRect(-1.6, -1.6, 3.2, 3.2); g.restore();
+      }
+      if (hov) { g.strokeStyle = I.a(0.9); g.lineWidth = 1; ring(g, x, y, 6); g.stroke(); }
+      // comet names always (there are few); asteroid names on hover or when the wheel is big enough for the belt to breathe
+      if (o.labels !== false && (hov || (w.t === 'com' ? !small : R > 320))) {
+        g.font = `400 ${small ? 8 : 9}px 'Geist Mono', ui-monospace, monospace`;
+        g.fillStyle = I.a(hov ? 0.95 : 0.36); g.textAlign = 'left'; g.textBaseline = 'middle';
+        g.fillText(w.n, x + 5, y + 3);
+      }
+      pos[key] = [x, y];
+    });
+  }
+
+  // the spacecraft leaving: far past the drawing, so they sit on its edge, pointing the way they are going
+  if (o.probes) {
+    PROBES.forEach((p, i) => {
+      const s = probeAt(p, chart.jd); if (!s) return;
+      const rr = s.r > RMAX ? rIn + 4 : k(s.r), key = 'P:' + p.n, hov = o.hover === key;
+      const [x, y] = P(p.lam, rr), a = -p.lam * D2R;
+      g.save(); g.translate(x, y); g.rotate(a);
+      g.fillStyle = I.a(hov ? 1 : 0.75); g.beginPath(); g.moveTo(5, 0); g.lineTo(-3, -3.2); g.lineTo(-1.2, 0); g.lineTo(-3, 3.2); g.closePath(); g.fill();
+      g.restore();
+      if (hov) { g.strokeStyle = I.a(0.9); g.lineWidth = 1; ring(g, x, y, 8); g.stroke(); }
+      if (o.labels !== false) {
+        // short tags (V1, V2, NH); the full name and distance on hover
+        g.font = `500 ${R > 220 ? 9 : 8}px 'Geist Mono', ui-monospace, monospace`;
+        g.fillStyle = I.a(hov ? 0.95 : 0.45); g.textBaseline = 'middle';
+        const tag = hov ? `${p.n.toUpperCase()} · ${Math.round(s.r)} AU` : p.tag;
+        const [tx, ty] = P(p.lam, rr - 13);
+        g.textAlign = 'center'; g.fillText(tag, tx + (hov ? 0 : [0, -10, 10][i]), ty + (hov ? [0, -10, 10][i] : 0));
+      }
+      pos[key] = [x, y];
     });
   }
 
@@ -187,8 +252,30 @@ export function drawWheel(g, o) {
     }
   });
 
+  // moons: bearings and tilts true, orbits magnified so they show
+  if (o.moons) {
+    const SYS = moonSystems(chart), sc = Math.max(0.8, R / 320);
+    for (const code in MOON_PX) {
+      const b = chart.bodies.find(q => q.code === code), [hx, hy] = pos[code];
+      const hr = Math.max(2.2, b.size * (R / 360) * 1.5), lit = o.hover === code || o.focus === code;
+      SYS[code].forEach((st, i) => {
+        const Rm = hr + MOON_PX[code][i] * sc;
+        if (lit) {
+          g.strokeStyle = I.a(0.28); g.lineWidth = 0.8; g.beginPath();
+          for (let q = 0; q <= 48; q++) { const aa = q / 48 * Math.PI * 2, c = Math.cos(aa), sn = Math.sin(aa); const px = hx + (st.p1[0] * c + st.p2[0] * sn) * Rm, py = hy - (st.p1[1] * c + st.p2[1] * sn) * Rm; q ? g.lineTo(px, py) : g.moveTo(px, py); }
+          g.stroke();
+        }
+        g.fillStyle = I.a(lit ? 1 : 0.75);
+        g.beginPath(); g.arc(hx + st.v[0] * Rm, hy - st.v[1] * Rm, MOON_DOT[code][i] * 0.75 * sc, 0, Math.PI * 2); g.fill();
+      });
+    }
+  }
+
   return { pos, cx, cy, R };
 }
+// How far out each moon is drawn from its host's edge, in pixels at R = 320 (v1's spacing), and its dot size.
+const MOON_PX = { EAR: [7.5], MAR: [4.5, 6.2], JUP: [5.5, 7.2, 9.0, 11.8], SAT: [4.8, 5.8, 6.8, 7.9, 9.2, 11.5, 14.5], URA: [4.2, 5.2, 6.3, 7.6, 9.0], NEP: [6.5] };
+const MOON_DOT = { EAR: [2.1], MAR: [1.3, 1.2], JUP: [1.5, 1.4, 1.8, 1.6], SAT: [1.1, 1.2, 1.3, 1.3, 1.4, 1.9, 1.5], URA: [1.2, 1.3, 1.3, 1.5, 1.5], NEP: [1.7] };
 
 // The person's name under Earth's label: same mono, toned down, so Earth stays Earth.
 function subLabel(g, I, text, x, y, R, align = 'left') {

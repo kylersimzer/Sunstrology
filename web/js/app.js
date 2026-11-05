@@ -4,6 +4,7 @@ import { STATIONS, ROMAN, WORLDS, PATTERNS, ASPECT_MEANING, patternText, natalRe
   PROMPTS, dataBlock, pairBlock, badgeDetail } from './meaning.js';
 import { drawWheel, sealSVG, stationSVG, drawPoster } from './wheel.js';
 import { createTelescope } from './telescope.js';
+import { WANDERERS, wandererAt, PROBES, probeAt, MOON_NOTES, climbing, nextPerihelion } from './objects.js';
 
 const $ = id => document.getElementById(id);
 const $$ = (sel, el = document) => [...el.querySelectorAll(sel)];
@@ -72,6 +73,7 @@ const personJd = p => jdFromDate(localToUTC(p.date, p.unknown ? '12:00' : p.time
 const S = {
   view: 'sky', viewJd: jdFromDate(new Date()), nowJd: jdFromDate(new Date()),
   playing: false, speed: 30, scale: 'even', aspects: true, hover: null, focus: null,
+  layers: { moons: true, wanderers: true, probes: true, retro: false },
   pairWith: null, guest: null, oracleMode: 'daily', posterTheme: 'dark',
   chartCache: new Map(), geom: null, t: 0, dirty: true, lastInspect: 0,
 };
@@ -102,7 +104,7 @@ async function copy(text, msg = 'Copied') { try { await navigator.clipboard.writ
 
 /* ---------- routing ---------- */
 const TIMED = ['sky', 'chart', 'telescope'];
-const VIEWS = { sky: 'Today', chart: 'Birth chart', pair: 'Pair', telescope: 'Telescope', figures: 'Figures', oracle: 'Oracle', poster: 'Poster' };
+const VIEWS = { sky: 'Today', chart: 'Your birth chart', pair: 'Pair', telescope: 'Telescope', figures: 'Figures', oracle: 'Oracle', poster: 'Poster' };
 function parseHash() {
   const [path, q] = location.hash.replace(/^#\/?/, '').split('?');
   const params = new URLSearchParams(q || '');
@@ -134,11 +136,12 @@ function renderPeople() {
   const html = ps.length ? ps.map(p => {
     const c = natalOf(p);
     return `<li data-id="${p.id}" class="${a && a.id === p.id ? 'on' : ''}"><span class="seal">${sealSVG(c, { size: 18 })}</span><span class="pname">${esc(p.name)}</span><span class="pst">${STATIONS[c.station].name}</span><button class="icon-btn edit" data-edit="${p.id}" title="Edit" aria-label="Edit ${esc(p.name)}"><i data-ico="edit"></i></button></li>`;
-  }).join('') : '<li class="empty">No one yet. Add your birth moment.</li>';
+  }).join('') : '<li class="empty">No birthdays yet. Add yours to read today’s sky against it.</li>';
   $('people').innerHTML = html; $('peopleM').innerHTML = html;
   paintIcons($('people')); paintIcons($('peopleM'));
   const c = natalOf(a);
-  $('whoName').textContent = a ? a.name : 'Add you';
+  $('whoName').textContent = a ? a.name : '+ Add birthday';
+  $('addChip').hidden = !!a;
   $('whoSeal').innerHTML = c ? sealSVG(c, { size: 18 }) : '';
   $('crumbPerson').textContent = a ? a.name : 'The sky';
 }
@@ -159,7 +162,7 @@ let editing = null;
 function openPerson(p = null, defaults = {}) {
   editing = p;
   const f = $('personForm');
-  $('personTitle').textContent = p ? `Edit ${p.name}` : people().length ? 'Add a person' : 'Your birth moment';
+  $('personTitle').textContent = p ? `Edit ${p.name}` : people().length ? 'Add a birthday' : 'Your birthday';
   f.name.value = p?.name ?? defaults.name ?? (people().length ? '' : 'Me');
   f.date.value = p?.date ?? defaults.date ?? '';
   f.time.value = p?.time ?? '12:00';
@@ -232,7 +235,7 @@ function draw() {
   const { chart, natal, other, sub, otherSub } = stageCharts();
   const narrow = W < 520, top = narrow ? 46 : 0;
   const R = Math.min(W, H - top) / 2 - (narrow ? 10 : 36);
-  S.geom = drawWheel(g, { chart, natal, other, scale: S.scale, cx: W / 2, cy: top + (H - top) / 2 + (narrow ? 0 : 4), R, hover: S.hover, focus: S.focus, showAspects: S.aspects, t: S.t, earthSub: sub, otherSub });
+  S.geom = drawWheel(g, { chart, natal, other, scale: S.scale, cx: W / 2, cy: top + (H - top) / 2 + (narrow ? 0 : 4), R, hover: S.hover, focus: S.focus, showAspects: S.aspects, t: S.t, earthSub: sub, otherSub, ...S.layers });
   S.geom.chart = chart; S.geom.other = other;
 }
 /* ---------- the Telescope (three.js, loaded on first open) ---------- */
@@ -256,10 +259,10 @@ function setScope(on) {
 function syncScope() {
   if (!scope) return;
   const { chart, natal, other, sub, otherSub } = stageCharts();
-  scope.sync(chart, { natal, other, scale: S.scale, showAspects: S.aspects, focus: S.focus, earthSub: sub, otherSub });
+  scope.sync(chart, { natal, other, scale: S.scale, showAspects: S.aspects, focus: S.focus, earthSub: sub, otherSub, ...S.layers });
 }
 function onScopeHover(code, x, y, speed, tap) {
-  if (tap) { S.focus = code && code !== S.focus ? code : null; S.dirty = true; renderHud(); }
+  if (tap) { S.focus = code && !code.includes(":") && code !== S.focus ? code : null; S.dirty = true; renderHud(); }
   if (x == null) return;
   S.hover = code;
   showTip(code, x, y, scope?.chart);
@@ -287,19 +290,34 @@ function hit(x, y) {
   for (const [code, [px, py]] of Object.entries(S.geom.pos)) { const d = Math.hypot(px - x, py - y); if (d < bd) { bd = d; best = code; } }
   return best;
 }
+function tipHTML(code, chart) {
+  const kv = (k, v) => `<div class="kv"><span>${k}</span><span>${v}</span></div>`;
+  if (code.startsWith('W:')) {
+    const w = WANDERERS.find(q => 'W:' + q.n === code); if (!w) return '';
+    const s = wandererAt(w, chart.jd), s2 = wandererAt(w, chart.jd + 15), per = nextPerihelion(w, chart.jd);
+    return `<b>${w.t === 'com' ? '☄' : '◆'} ${w.n}</b>` + kv('Kind', w.t === 'com' ? 'comet' : 'asteroid') + kv('Station', STATIONS[stationOf(s.lon)].name)
+      + kv('Longitude', s.lon.toFixed(1) + '°') + kv('From the Sun', s.r.toFixed(2) + ' AU') + kv('Heading', s2.r < s.r ? 'inbound, toward the Sun' : 'outbound')
+      + kv('Next round the Sun', per <= JD_MAX ? fmtJd(per) : dateFromJd(per).getUTCFullYear())
+      + `<div class="note">${esc(w.d[0].toUpperCase() + w.d.slice(1))}. ${w.n === 'Apophis' ? 'Track valid until its April 2029 Earth encounter.' : 'A two-body track from epoch elements.'}</div>`;
+  }
+  if (code.startsWith('P:')) {
+    const p = PROBES.find(q => 'P:' + q.n === code), s = p && probeAt(p, chart.jd); if (!s) return '';
+    return `<b>⟶ ${p.n}</b>` + kv('From the Sun', s.r.toFixed(1) + ' AU') + kv('Radio, one way', s.lightHours.toFixed(1) + ' hours') + kv('Heading toward', STATIONS[stationOf(p.lam)].name)
+      + `<div class="note">${esc(p.d[0].toUpperCase() + p.d.slice(1))}. Far past the edge of this drawing, so it sits on the rim, pointing the way it is going. Distance true, direction approximate.</div>`;
+  }
+  const b = chart.bodies.find(q => q.code === code), W = WORLDS[code]; if (!b) return '';
+  const ret = chart.retro.has(code), up = climbing(b, chart.jd);
+  return `<b>${W.glyph} ${b.name}${code === 'EAR' ? ' · you' : ''}</b>` + kv('Station', STATIONS[stationOf(b.lon)].name) + kv('Longitude', b.lon.toFixed(1) + '°')
+    + kv('From the Sun', b.r.toFixed(2) + ' AU') + kv('Speed', b.speed.toFixed(1) + ' km/s') + kv('Orbit', Math.round(b.frac * 100) + '% past perihelion')
+    + kv('Height', `${b.z >= 0 ? '+' : ''}${b.z.toFixed(2)} AU, ${up ? 'climbing' : 'diving'}`) + kv('Speaks for', W.voice)
+    + (ret ? '<div class="note">From Earth it would look like it was going backward: an illusion of Earth overtaking it. From the Sun, nothing moves backward.</div>' : '')
+    + (S.layers.moons && MOON_NOTES[code] ? `<div class="note">☾ ${MOON_NOTES[code]}.</div>` : '');
+}
 function showTip(code, x, y, chart = S.geom?.chart) {
   const tip = $('tip');
-  if (!code || !chart) { tip.hidden = true; cv.classList.remove('hovering'); return; }
-  const b = chart.bodies.find(q => q.code === code), W = WORLDS[code];
-  const ret = chart.retro.has(code);
-  tip.innerHTML = `<b>${W.glyph} ${b.name}${code === 'EAR' ? ' · you' : ''}</b>
-    <div class="kv"><span>Station</span><span>${STATIONS[stationOf(b.lon)].name}</span></div>
-    <div class="kv"><span>Longitude</span><span>${b.lon.toFixed(1)}°</span></div>
-    <div class="kv"><span>From the Sun</span><span>${b.r.toFixed(2)} AU</span></div>
-    <div class="kv"><span>Speed</span><span>${b.speed.toFixed(1)} km/s</span></div>
-    <div class="kv"><span>Orbit</span><span>${Math.round(b.frac * 100)}% past perihelion</span></div>
-    ${ret ? '<div class="kv"><span>From Earth</span><span>looks retrograde</span></div>' : ''}
-    <div class="kv"><span>Speaks for</span><span>${W.voice}</span></div>`;
+  const html = code && chart ? tipHTML(code, chart) : '';
+  if (!html) { tip.hidden = true; cv.classList.remove('hovering'); return; }
+  tip.innerHTML = html;
   const rect = $('stage').getBoundingClientRect();
   tip.hidden = false;
   const tw = tip.offsetWidth, th = tip.offsetHeight;
@@ -318,7 +336,7 @@ cv.addEventListener('pointerleave', () => { S.hover = null; S.dirty = true; show
 cv.addEventListener('click', e => {
   const r = cv.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
   const h = hit(x, y);
-  S.focus = h && h !== S.focus ? h : null;
+  S.focus = h && !h.includes(":") && h !== S.focus ? h : null;
   S.hover = h; S.dirty = true;
   if (e.pointerType === 'touch' || !matchMedia('(hover: hover)').matches) showTip(h, x, y);
   renderHud();
@@ -329,7 +347,7 @@ function renderHud() {
   const { chart } = stageCharts();
   const d = dateFromJd(S.view === 'pair' ? chart.jd : S.viewJd);
   const lines = [
-    `<b>${S.view === 'sky' ? (isToday(S.viewJd) ? 'THE SKY NOW' : 'THE SKY ON') : S.view === 'chart' ? 'BIRTH SKY' : S.view === 'telescope' ? 'TELESCOPE' : 'TWO SKIES'}</b>`,
+    `<b>${S.view === 'sky' ? (isToday(S.viewJd) ? 'THE SKY NOW' : 'THE SKY ON') : S.view === 'chart' ? 'YOUR BIRTH SKY' : S.view === 'telescope' ? 'TELESCOPE' : 'TWO SKIES'}</b>`,
     `${fmtDay(d).toUpperCase()}`,
     `PATTERN · ${chart.pattern.toUpperCase()}`,
   ];
@@ -372,11 +390,18 @@ $('toNow').onclick = () => { S.viewJd = S.nowJd; if (S.view === 'chart') locatio
 $('toBirth').onclick = () => { const p = active(); if (!p) return openPerson(); S.viewJd = personJd(p); S.dirty = true; syncTime(); renderInspector(); };
 $('speedSeg').onclick = e => { const b = e.target.closest('button'); if (!b) return; S.speed = +b.dataset.speed; $$('#speedSeg button').forEach(x => x.classList.toggle('on', x === b)); };
 $('scaleSeg').onclick = e => { const b = e.target.closest('button'); if (!b) return; S.scale = b.dataset.scale; $$('#scaleSeg button').forEach(x => x.classList.toggle('on', x === b)); S.dirty = true; };
-$('aspToggle').onclick = e => { S.aspects = !S.aspects; e.currentTarget.setAttribute('aria-pressed', S.aspects); $('legend').style.opacity = S.aspects ? 1 : 0; S.dirty = true; };
+function setLayer(name, on) {
+  if (name === 'aspects') { S.aspects = on; $('legend').style.opacity = on ? 1 : 0; } else S.layers[name] = on;
+  const box = document.querySelector(`[data-layer="${name}"]`); if (box) box.checked = on;
+  S.dirty = true;
+}
+$('layersBtn').onclick = e => { e.stopPropagation(); const m = $('layersMenu'); m.hidden = !m.hidden; $('layersBtn').setAttribute('aria-expanded', !m.hidden); };
+$('layersMenu').addEventListener('change', e => { const b = e.target.closest('[data-layer]'); if (b) setLayer(b.dataset.layer, b.checked); });
+document.addEventListener('click', e => { if (!e.target.closest('.layers')) { $('layersMenu').hidden = true; $('layersBtn').setAttribute('aria-expanded', 'false'); } });
 
 /* ---------- inspector: Today ---------- */
 function emptyCTA(msg) {
-  return `<div class="sec"><div class="label">Start here</div><p class="lede">${msg}</p><div class="row" style="margin-top:14px"><button class="btn primary" data-act="add">Add your birth moment</button></div></div>`;
+  return `<div class="sec"><div class="label">Start here</div><p class="lede">${msg}</p><div class="row" style="margin-top:14px"><button class="btn primary" data-act="add">+ Add your birthday</button></div></div>`;
 }
 function inspectSky() {
   const p = active(), now = chartAt(S.viewJd), natal = natalOf(p), today = isToday(S.viewJd);
@@ -400,7 +425,7 @@ function inspectSky() {
       : '<p class="small">No tight lines today. The sky is leaving you alone.</p>';
     h += '</div>';
   } else {
-    h += emptyCTA('This is the sky right now, seen from the Sun. Add your birth moment to see how today’s sky lines up with yours, and get a daily solar weather report.');
+    h += emptyCTA('This is the sky right now, seen from the Sun. Add your birthday to see how today’s sky lines up with yours, and get a daily solar weather report.');
   }
   h += `<div class="sec"><div class="label">Earth ${today ? 'now' : 'then'}</div>
     <div class="hero"><div class="hero-glyph">${stationSVG(now.station, 32)}</div><div><h1>${st.name}</h1><div class="sub">STATION ${ROMAN[now.station]} · ${st.gloss.toUpperCase()}</div></div></div>
@@ -518,7 +543,7 @@ function tickOdo() {
 function renderFigures() {
   const p = active();
   const doc = $('doc');
-  if (!p) { doc.innerHTML = `<div class="doc-head"><div><h1>Figures</h1><p>Every value computed from a birth moment. None invented.</p></div></div>${emptyCTA('Add a birth moment to fill the tables.')}`; return; }
+  if (!p) { doc.innerHTML = `<div class="doc-head"><div><h1>Figures</h1><p>Every value computed from a birth moment. None invented.</p></div></div>${emptyCTA('Add a birthday to fill the tables.')}`; return; }
   const c = natalOf(p), now = chartAt(S.nowJd), birthJd = c.jd;
   const pu = pulls(c), cyc = solarCycle(c.jd), w = c.wobble, years = (S.nowJd - birthJd) / 365.25;
   const lightMin = c.earth.r * AUm / C_LIGHT / 60;
@@ -567,7 +592,7 @@ function renderOracle() {
   if (p) {
     if (mode === 'pair') { const b = pairPartner(); data = b ? pairBlock(p, natalOf(p), b, natalOf(b)) : 'Add a second person to build pair data.'; }
     else data = dataBlock(p, natalOf(p), mode === 'daily' ? chartAt(S.nowJd) : null);
-  } else data = 'Add a birth moment to build the data.';
+  } else data = 'Add a birthday to build the data.';
   const prompt = localStorage.getItem(promptKey(mode)) || PROMPTS[mode];
   doc.innerHTML = `<div class="doc-head"><div><h1>Oracle</h1><p>Turns the computed sky into clean data and a prompt you can paste into any AI for a written reading. Nothing is sent anywhere from here.</p></div>
     <div class="seg" id="oracleSeg"><button data-m="daily" class="${mode === 'daily' ? 'on' : ''}">Daily</button><button data-m="natal" class="${mode === 'natal' ? 'on' : ''}">Natal</button><button data-m="pair" class="${mode === 'pair' ? 'on' : ''}">Pair</button></div></div>
@@ -587,7 +612,7 @@ function renderOracle() {
 /* ---------- Poster ---------- */
 async function renderPoster() {
   const p = active(), doc = $('doc');
-  if (!p) { doc.innerHTML = `<div class="doc-head"><div><h1>Poster</h1><p>Your sky as a print.</p></div></div>${emptyCTA('Add a birth moment to draw your poster.')}`; return; }
+  if (!p) { doc.innerHTML = `<div class="doc-head"><div><h1>Poster</h1><p>Your sky as a print.</p></div></div>${emptyCTA('Add a birthday to draw your poster.')}`; return; }
   const c = natalOf(p);
   doc.innerHTML = `<div class="doc-head"><div><h1>Poster</h1><p>Your sky as a print: the nine worlds on their rings, joined in order from the Sun outward. No two birth moments draw the same figure.</p></div></div>
     <div class="poster-wrap"><canvas id="posterCv" width="1080" height="1350"></canvas>
@@ -660,7 +685,7 @@ document.addEventListener('keydown', e => {
   else if (k === 'ArrowRight') step(1);
   else if (k === 'n' || k === 'N') $('toNow').click();
   else if (k === 'b' || k === 'B') $('toBirth').click();
-  else if (k === 'l' || k === 'L') $('aspToggle').click();
+  else if (k === 'l' || k === 'L') setLayer('aspects', !S.aspects);
   else if (k === 'Escape') { S.focus = null; S.dirty = true; renderHud(); }
 });
 
@@ -674,6 +699,5 @@ function boot() {
   setInterval(() => { S.nowJd = jdFromDate(new Date()); }, 60000);
   route();
   requestAnimationFrame(loop);
-  if (!people().length && !S.guest) setTimeout(() => openPerson(), 400);
 }
 boot();
