@@ -4,7 +4,7 @@ import { STATIONS, ROMAN, WORLDS, PATTERNS, ASPECT_MEANING, patternText, natalRe
   PROMPTS, dataBlock, pairBlock, badgeDetail } from './meaning.js';
 import { drawWheel, sealSVG, stationSVG, drawPoster, radiusToAU, edgeSVG } from './wheel.js';
 import { createTelescope } from './telescope.js';
-import { WANDERERS, wandererAt, PROBES, probeAt, MOON_NOTES, climbing, nextPerihelion } from './objects.js';
+import { WANDERERS, wandererAt, PROBES, probeAt, MOON_NOTES, climbing, nextPerihelion, moonFromKey } from './objects.js';
 
 const $ = id => document.getElementById(id);
 const $$ = (sel, el = document) => [...el.querySelectorAll(sel)];
@@ -302,7 +302,7 @@ function syncScope() {
 }
 function onScopeHover(code, x, y, speed, tap) {
   if (tap) { S.focus = code && !code.includes(":") && code !== S.focus ? code : null; S.dirty = true; renderHud(); }
-  if (x == null) return;
+  if (x == null) { if (!code) { S.hover = null; showTip(null); } return; }   // the pointer left the view: drop the card
   S.hover = code;
   showTip(code, x, y, scope?.chart);
 }
@@ -325,9 +325,14 @@ function loop(now) {
 }
 function hit(x, y) {
   if (!S.geom) return null;
-  let best = null, bd = 18;
-  for (const [code, [px, py]] of Object.entries(S.geom.pos)) { const d = Math.hypot(px - x, py - y); if (d < bd) { bd = d; best = code; } }
-  return best;
+  // moons sit right beside their planet, so a moon only wins when the pointer is on it (within 7 px) and nearer than anything else
+  let best = null, bd = 18, moon = null, md = 7;
+  for (const [code, [px, py]] of Object.entries(S.geom.pos)) {
+    const d = Math.hypot(px - x, py - y);
+    if (code.startsWith('M:')) { if (d < md) { md = d; moon = code; } }
+    else if (d < bd) { bd = d; best = code; }
+  }
+  return moon && (!best || md < bd) ? moon : best;
 }
 function tipHTML(code, chart) {
   const kv = (k, v) => `<div class="kv"><span>${k}</span><span>${v}</span></div>`;
@@ -343,6 +348,14 @@ function tipHTML(code, chart) {
     const p = PROBES.find(q => 'P:' + q.n === code), s = p && probeAt(p, chart.jd); if (!s) return '';
     return `<b>⟶ ${p.n}</b>` + kv('From the Sun', s.r.toFixed(1) + ' AU') + kv('Radio, one way', s.lightHours.toFixed(1) + ' hours') + kv('Heading toward', STATIONS[stationOf(p.lam)].name)
       + `<div class="note">${esc(p.d[0].toUpperCase() + p.d.slice(1))}. Far past the edge of this drawing, so it sits on the rim, pointing the way it is going. Distance true, direction approximate.</div>`;
+  }
+  if (code.startsWith('M:')) {
+    const m = moonFromKey(code); if (!m) return '';
+    const host = chart.bodies.find(b => b.code === m.host);
+    const per = m.days < 2 ? `${(m.days * 24).toFixed(1)} hours` : `${m.days.toFixed(m.days < 10 ? 2 : 1)} days`;
+    return `<b>☾ ${m.name}</b>` + kv('Moon of', host.name) + kv('From ' + host.name, n0(m.km) + ' km') + kv('One orbit', per + (m.retro ? ', backward' : ''))
+      + kv('Across', n0(m.dia) + ' km') + kv('Station', STATIONS[stationOf(host.lon)].name)
+      + `<div class="note">${esc(m.note)} Its bearing round ${host.name} is true; the orbit is drawn magnified.</div>`;
   }
   if (code === 'BARY') {
     const w = chart.wobble;

@@ -2,7 +2,7 @@
 // One ink at different strengths, like stems.fm and GODMIX. Aspect types are told apart by line style, not colour.
 import { PLANETS, orbitPath, normDeg, D2R, bodyState } from './astro.js';
 import { STATIONS, ROMAN, WORLDS } from './meaning.js';
-import { WANDERERS, wandererAt, PROBES, probeAt, moonSystems } from './objects.js';
+import { WANDERERS, wandererAt, PROBES, probeAt, moonSystems, MOON_NAMES } from './objects.js';
 
 // 'even' spaces the orbits evenly, like an orrery (interpolating between semi-major axes, so ellipses keep their shape).
 const RUNGS = [[0, 0], [0.387, 1], [0.723, 2], [1, 3], [1.524, 4], [5.2, 5], [9.54, 6], [19.2, 7], [30.07, 8], [39.5, 9], [60, 10.6]];
@@ -288,16 +288,23 @@ export function drawWheel(g, o) {
     const SYS = moonSystems(chart), sc = Math.max(0.8, R / 320);
     for (const code in MOON_PX) {
       const b = chart.bodies.find(q => q.code === code), [hx, hy] = pos[code];
-      const hr = Math.max(2.2, b.size * (R / 360) * 1.5), lit = o.hover === code || o.focus === code;
+      const hr = Math.max(2.2, b.size * (R / 360) * 1.5), mine = k => typeof k === 'string' && k.startsWith(`M:${code}:`);
+      const lit = o.hover === code || o.focus === code || mine(o.hover) || mine(o.pin);
       SYS[code].forEach((st, i) => {
-        const Rm = hr + MOON_PX[code][i] * sc;
-        if (lit) {
+        const Rm = hr + MOON_PX[code][i] * sc, key = `M:${code}:${i}`, me = o.hover === key || o.pin === key;
+        if (lit && (me || !(mine(o.hover) || mine(o.pin)))) {
           g.strokeStyle = I.a(0.28); g.lineWidth = 0.8; g.beginPath();
           for (let q = 0; q <= 48; q++) { const aa = q / 48 * Math.PI * 2, c = Math.cos(aa), sn = Math.sin(aa); const px = hx + (st.p1[0] * c + st.p2[0] * sn) * Rm, py = hy - (st.p1[1] * c + st.p2[1] * sn) * Rm; q ? g.lineTo(px, py) : g.moveTo(px, py); }
           g.stroke();
         }
+        const mx = hx + st.v[0] * Rm, my = hy - st.v[1] * Rm;
         g.fillStyle = I.a(lit ? 1 : 0.75);
-        g.beginPath(); g.arc(hx + st.v[0] * Rm, hy - st.v[1] * Rm, MOON_DOT[code][i] * 0.75 * sc, 0, Math.PI * 2); g.fill();
+        g.beginPath(); g.arc(mx, my, MOON_DOT[code][i] * 0.75 * sc * (me ? 1.4 : 1), 0, Math.PI * 2); g.fill();
+        if (me) {
+          g.strokeStyle = I.a(0.9); g.lineWidth = 1; ring(g, mx, my, 5); g.stroke();
+          if (o.labels !== false) { g.font = "500 9px 'Geist Mono', ui-monospace, monospace"; g.fillStyle = I.a(0.95); g.textAlign = 'left'; g.textBaseline = 'middle'; g.fillText(MOON_NAMES[code][i].toUpperCase(), mx + 8, my - 6); }
+        }
+        pos[key] = [mx, my];
       });
     }
   }

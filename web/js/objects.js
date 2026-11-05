@@ -143,6 +143,36 @@ export const MOON_NOTES = {
   NEP: 'Triton, going round backward (retrograde)',
 };
 
+/** Real figures for each moon: mean distance from its planet (km), orbital period (days), diameter (km), and what it is known for. */
+export const MOON_INFO = {
+  Moon: { km: 384400, days: 27.322, dia: 3474, note: 'Ours. It sets the tides, and it is slowly drifting away, about 3.8 cm a year.' },
+  Phobos: { km: 9376, days: 0.319, dia: 22.5, note: 'Rises in the west and crosses the Martian sky twice a day. It is spiralling inward.' },
+  Deimos: { km: 23463, days: 1.263, dia: 12.4, note: 'The smaller, outer moon of Mars: from the surface it looks like a bright star.' },
+  Io: { km: 421700, days: 1.769, dia: 3643, note: 'The most volcanic place known, kneaded by Jupiter’s tides.' },
+  Europa: { km: 671034, days: 3.551, dia: 3122, note: 'An ocean of liquid water under a shell of ice.' },
+  Ganymede: { km: 1070412, days: 7.155, dia: 5268, note: 'The largest moon in the solar system, bigger than Mercury, with its own magnetic field.' },
+  Callisto: { km: 1882709, days: 16.689, dia: 4821, note: 'One of the most heavily cratered surfaces anywhere: almost untouched for four billion years.' },
+  Mimas: { km: 185539, days: 0.942, dia: 396, note: 'One crater, Herschel, is a third as wide as the whole moon.' },
+  Enceladus: { km: 237948, days: 1.370, dia: 504, note: 'Geysers at its south pole spray ocean water into space.' },
+  Tethys: { km: 294619, days: 1.888, dia: 1062, note: 'Almost pure water ice, split by a canyon most of the way around it.' },
+  Dione: { km: 377396, days: 2.737, dia: 1123, note: 'Bright ice cliffs hundreds of kilometres long.' },
+  Rhea: { km: 527108, days: 4.518, dia: 1527, note: 'Saturn’s second-largest moon, an icy, cratered ball.' },
+  Titan: { km: 1221870, days: 15.945, dia: 5149, note: 'A thick hazy atmosphere, and lakes and rivers of liquid methane.' },
+  Iapetus: { km: 3560820, days: 79.32, dia: 1469, note: 'Two-toned: one side as dark as coal, the other as bright as snow.' },
+  Miranda: { km: 129390, days: 1.413, dia: 472, note: 'A patchwork surface with the tallest known cliff in the solar system.' },
+  Ariel: { km: 191020, days: 2.520, dia: 1158, note: 'The brightest of Uranus’s moons, with long rift valleys.' },
+  Umbriel: { km: 266000, days: 4.144, dia: 1169, note: 'The darkest of Uranus’s large moons.' },
+  Titania: { km: 435910, days: 8.706, dia: 1577, note: 'The largest moon of Uranus.' },
+  Oberon: { km: 583520, days: 13.463, dia: 1523, note: 'The outermost of Uranus’s five large moons.' },
+  Triton: { km: 354759, days: 5.877, dia: 2707, retro: true, note: 'Goes round Neptune backward, so it was probably captured. Nitrogen geysers erupt from its frozen surface.' },
+};
+/** A moon's key in hover and pin codes: M:<host>:<index>. */
+export const moonKey = (host, i) => `M:${host}:${i}`;
+export function moonFromKey(key) {
+  const [, host, i] = key.split(':'), name = MOON_NAMES[host]?.[+i];
+  return name ? { host, i: +i, name, ...MOON_INFO[name] } : null;
+}
+
 /** Each host's moons as unit vectors (v) on their orbit planes (p1, p2), at the moment of `chart`. */
 export function moonSystems(chart) {
   const e = chart.earth;

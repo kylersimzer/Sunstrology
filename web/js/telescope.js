@@ -182,7 +182,10 @@ export async function createTelescope(wrap, { onHover } = {}) {
       sub.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(circlePts(R, 64)), new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.1 })));
       const mm = new THREE.Mesh(new THREE.SphereGeometry(Math.max(0.22, host.size * 0.09), 14, 10), new THREE.MeshLambertMaterial({ color: 0xcfcdc6 }));
       const lbl = sprite(textTex([{ text: n.toUpperCase(), size: 22, y: 26, color: ink(0.6) }]), 0.13, 0.0325, false, 0.75, true); lbl.center.set(0.5, -0.4); lbl.visible = false;
-      sub.add(mm, lbl); sub.userData = { mesh: mm, R, label: lbl };
+      const orbitLine = sub.children[0];
+      const hit = new THREE.Mesh(new THREE.SphereGeometry(Math.max(0.9, host.size * 0.35), 6, 4), new THREE.MeshBasicMaterial({ visible: false }));
+      hit.userData.code = `M:${code}:${i}`; mm.add(hit); hits.push(hit);
+      sub.add(mm, lbl); sub.userData = { mesh: mm, R, label: lbl, orbit: orbitLine, key: `M:${code}:${i}` };
       grp.add(sub); grp.userData.subs.push(sub);
     });
     grp.userData.near = host.size * 26;
@@ -379,6 +382,9 @@ export async function createTelescope(wrap, { onHover } = {}) {
     // only things that are showing can be hovered (hidden layers keep their hit spheres)
     const shown = o => { for (let q = o.parent; q; q = q.parent) if (!q.visible) return false; return true; };
     const h = ray.intersectObjects(hits, false).filter(x => shown(x.object));
+    // small things win when the pointer is on them: a planet's hover area is large enough to swallow its own moons
+    const rank = c => c.startsWith('M:') ? 0 : c.includes(':') ? 1 : 2;
+    h.sort((a, b) => rank(a.object.userData.code) - rank(b.object.userData.code) || a.distance - b.distance);
     const code = h.length ? h[0].object.userData.code : null;
     T.hover = code;
     el.classList.toggle('hovering', !!code);
@@ -432,7 +438,17 @@ export async function createTelescope(wrap, { onHover } = {}) {
     if (!still) T.corona.material.rotation += 0.0008;
     wands.forEach(it => { if (!it.label.visible) return; const d = cam.pos.distanceTo(it.mesh.position); it.label.material.opacity = (T.hover === 'W:' + it.w.n ? 1 : Math.max(0, Math.min(0.55, 1.1 - d / 500))) * (T.hover && T.hover !== 'W:' + it.w.n ? 0.4 : 1); it.pip.material.opacity = Math.max(0, Math.min(0.7, d / 200 - 0.15)); });
     probes.forEach(it => { if (!it.label.visible) return; it.label.material.opacity = T.hover === 'P:' + it.p.n ? 1 : 0.6; });
-    for (const code in moonGroups) { const grp = moonGroups[code]; if (!grp.visible) continue; const near = cam.pos.distanceTo(grp.position) < grp.userData.near; grp.userData.subs.forEach(sub => { sub.userData.label.visible = near; }); }
+    for (const code in moonGroups) {
+      const grp = moonGroups[code]; if (!grp.visible) continue;
+      const near = cam.pos.distanceTo(grp.position) < grp.userData.near;
+      grp.userData.subs.forEach(sub => {
+        const me = T.hover === sub.userData.key;
+        sub.userData.label.visible = near || me;
+        sub.userData.label.material.opacity = me ? 1 : 0.75;
+        sub.userData.orbit.material.opacity = me ? 0.45 : 0.1;
+        sub.userData.mesh.scale.setScalar(me ? 1.6 : 1);
+      });
+    }
     for (const code in bodies) {
       const o = bodies[code];
       if (!still) o.mesh.rotation.y += 0.0016;
