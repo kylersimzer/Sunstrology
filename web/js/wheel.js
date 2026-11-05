@@ -1,6 +1,6 @@
 // Drawing: the wheel (the Sun's-eye view of the system) and the seal (a person's sky as a single figure).
 // One ink at different strengths, like stems.fm and GODMIX. Aspect types are told apart by line style, not colour.
-import { PLANETS, orbitPath, normDeg, D2R } from './astro.js';
+import { PLANETS, orbitPath, normDeg, D2R, bodyState } from './astro.js';
 import { STATIONS, ROMAN, WORLDS } from './meaning.js';
 import { WANDERERS, wandererAt, PROBES, probeAt, moonSystems } from './objects.js';
 
@@ -17,6 +17,15 @@ export const SCALES = {
   true: r => r,
 };
 const RMAX = 46;
+
+/** Screen radius → distance from the Sun in AU, for the wheel at radius R (inverts the scale). */
+export function radiusToAU(rad, R, scale = 'even') {
+  const f = SCALES[scale] || SCALES.even, rIn = R * 0.83, k = r => f(r) / f(RMAX) * rIn;
+  if (rad <= 0 || rad > k(RMAX)) return null;
+  let lo = 0, hi = RMAX;
+  for (let i = 0; i < 40; i++) { const mid = (lo + hi) / 2; k(mid) < rad ? lo = mid : hi = mid; }
+  return (lo + hi) / 2;
+}
 
 export function ink() {
   const cs = getComputedStyle(document.documentElement);
@@ -214,6 +223,18 @@ export function drawWheel(g, o) {
     });
   }
 
+  // trails: where each world was over the last few days to weeks, so you can see which way it is going
+  if (o.trails) {
+    g.lineCap = 'round';
+    chart.bodies.forEach(b => {
+      const step = Math.max(1.5, b.period * 0.009);
+      g.beginPath();
+      for (let i = 0; i <= 8; i++) { const st = bodyState(b.p, chart.jd - i * step), [x, y] = P(st.lon, k(st.r)); i ? g.lineTo(x, y) : g.moveTo(x, y); }
+      g.strokeStyle = I.a(o.focus && o.focus !== b.code ? 0.08 : 0.26); g.lineWidth = 1.6; g.stroke();
+    });
+    g.lineCap = 'butt';
+  }
+
   // the Sun
   const sunR = Math.max(5, R * 0.022);
   const glow = g.createRadialGradient(cx, cy, 0, cx, cy, sunR * 7);
@@ -226,6 +247,16 @@ export function drawWheel(g, o) {
     const a = i * 30 + t * 4;
     const [x0, y0] = P(a, sunR + 3), [x1, y1] = P(a, sunR + (i % 3 === 0 ? 7 : 5));
     g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke();
+  }
+
+  // the balance point of the whole system, which the Sun wobbles around (offset magnified so it shows)
+  if (o.bary !== false) {
+    const w = chart.wobble, mag = Math.min(w.dist / 0.012, 1) * Math.max(7, sunR * 2.2);
+    const [bx, by] = P(w.lon, mag), hov = o.hover === 'BARY';
+    g.strokeStyle = I.a(hov ? 1 : 0.6); g.lineWidth = 1;
+    g.beginPath(); g.moveTo(bx - 4, by); g.lineTo(bx + 4, by); g.moveTo(bx, by - 4); g.lineTo(bx, by + 4); g.stroke();
+    if (hov) { ring(g, bx, by, 7); g.stroke(); }
+    pos.BARY = [bx, by];
   }
 
   // worlds
@@ -242,7 +273,7 @@ export function drawWheel(g, o) {
       g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
       if (b.code === 'SAT') { g.strokeStyle = I.a(dim ? 0.3 : 0.7); g.lineWidth = 1; g.beginPath(); g.ellipse(x, y, r + 4, (r + 4) * 0.36, -0.35, 0, Math.PI * 2); g.stroke(); }
     }
-    if (hov) { g.strokeStyle = I.a(0.9); g.lineWidth = 1; ring(g, x, y, r + 8); g.stroke(); }
+    if (hov || o.pin === b.code) { g.strokeStyle = I.a(0.9); g.lineWidth = 1; ring(g, x, y, r + 8); g.stroke(); }
     if (o.labels !== false) {
       g.font = `${isE ? 600 : 500} ${R > 220 ? 11 : 9.5}px 'Geist Mono', ui-monospace, monospace`;
       g.fillStyle = isE ? I.a(1) : I.a(dim ? 0.3 : 0.6);
@@ -301,6 +332,25 @@ export function sealSVG(chart, { size = 24, stroke = 'currentColor', weight = 1.
     + `<path d="${d}" stroke="${stroke}" stroke-width="${sw}" stroke-linejoin="round" stroke-linecap="round"/>`
     + (dot ? `<circle cx="${e[0]}" cy="${e[1]}" r="${(size * 0.085).toFixed(2)}" fill="${stroke}"/>` : '')
     + `</svg>`;
+}
+
+/** Edge-on: each world's height above or below the plane of Earth's orbit, as SVG (heights exaggerated). */
+export function edgeSVG(chart, { w = 320, h = 132 } = {}) {
+  const mid = h / 2, span = w - 56, x0 = 30;
+  const fx = a => x0 + even(a) / even(RMAX) * span * 1.08;
+  let s = `<svg viewBox="0 0 ${w} ${h}" width="100%" height="${h}" fill="none" aria-label="Heights above and below the plane">`;
+  s += `<line x1="8" y1="${mid}" x2="${w - 8}" y2="${mid}" stroke="currentColor" stroke-opacity=".3" stroke-dasharray="3 4"/>`;
+  s += `<circle cx="${x0 - 12}" cy="${mid}" r="4" fill="currentColor"/>`;
+  chart.bodies.forEach(b => {
+    const x = +fx(b.el.a).toFixed(1), y = +Math.max(16, Math.min(h - 16, mid - Math.sign(b.z) * Math.sqrt(Math.abs(b.z)) * 16)).toFixed(1), isE = b.code === 'EAR';
+    s += `<line x1="${x}" y1="${mid}" x2="${x}" y2="${y}" stroke="currentColor" stroke-opacity=".22"/>`;
+    s += `<circle cx="${x}" cy="${y}" r="${isE ? 3.2 : 2.6}" fill="currentColor" fill-opacity="${isE ? 1 : 0.8}"/>`;
+    if (isE) s += `<circle cx="${x}" cy="${y}" r="6" stroke="currentColor" stroke-opacity=".6"/>`;
+    const up = b.z >= 0;
+    s += `<text x="${x}" y="${up ? y - 8 : y + 14}" text-anchor="middle" font-family="'Geist Mono', monospace" font-size="9" fill="currentColor" fill-opacity=".6">${b.code}</text>`;
+  });
+  s += `<text x="10" y="${mid - 6}" font-family="'Geist Mono', monospace" font-size="8" fill="currentColor" fill-opacity=".35">PLANE OF EARTH’S ORBIT</text></svg>`;
+  return s;
 }
 
 /** A tiny station glyph: the ring with its 30° sector drawn heavy. */

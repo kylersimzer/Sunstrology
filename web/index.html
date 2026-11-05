@@ -86,6 +86,7 @@
               <label><input type="checkbox" data-layer="moons" checked><span>Moons</span></label>
               <label><input type="checkbox" data-layer="wanderers" checked><span>Comets and asteroids</span></label>
               <label><input type="checkbox" data-layer="probes" checked><span>Spacecraft</span></label>
+              <label><input type="checkbox" data-layer="trails" checked><span>Trails</span></label>
               <label><input type="checkbox" data-layer="retro"><span>Retrograde illusion</span></label>
             </div>
           </div>
@@ -97,6 +98,12 @@
           <span><svg width="22" height="6"><line x1="1" y1="3" x2="21" y2="3" stroke="currentColor" stroke-dasharray="1 3" stroke-linecap="round"/></svg>Signal</span>
           <span><svg width="10" height="10"><rect x="2.6" y="2.6" width="4.8" height="4.8" transform="rotate(45 5 5)" fill="currentColor"/></svg>Asteroid</span>
           <span><svg width="16" height="8"><line x1="4" y1="4" x2="15" y2="4" stroke="currentColor" stroke-opacity=".5" stroke-width="1.4"/><circle cx="4" cy="4" r="2" fill="currentColor"/></svg>Comet</span>
+        </div>
+        <div class="zoom" id="zoomBar" role="group" aria-label="Zoom">
+          <button id="zoomOut" title="Zoom out (−)" aria-label="Zoom out"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3.5 8h9"/></svg></button>
+          <span id="zoomVal" class="mono">100%</span>
+          <button id="zoomIn" title="Zoom in (+)" aria-label="Zoom in"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M8 3.5v9M3.5 8h9"/></svg></button>
+          <button id="zoomReset" class="mono" title="Reset view (0, or double-click)" hidden>Reset</button>
         </div>
         <button class="add-chip" id="addChip" data-act="add" hidden><i data-ico="plus"></i>Add your birthday</button>
         <div class="tip mono" id="tip" hidden></div>
@@ -178,7 +185,7 @@
     <p>Sunstrology computes the solar system at any moment between 1800 and 2050 as seen <b>from the Sun</b>, then treats Earth as you. Your sign is Earth’s <b>station</b>: one of twelve 30° sectors of its orbit, named for the Sun’s own anatomy, from Core to Heliopause.</p>
     <p>The astronomy is real orbital mechanics (JPL Keplerian elements, solved with Kepler’s equation; the Moon from Meeus). The stations, patterns and readings are an invented symbolic layer, and the app keeps the two apart.</p>
     <p>No retrogrades, no houses, no borrowed zodiac. From the Sun, nothing ever moves backward.</p>
-    <p class="muted mono">Keys: 1–7 views · space play · ← → step · B birth · N now · L lines · Telescope: drag to look, W A S D fly, Q E down / up, shift boost, scroll speed</p>
+    <p class="muted mono">Keys: 1–7 views · space play · ← → step · B birth · N now · L lines · + − 0 zoom · Wheel: scroll to zoom, drag to pan, click a world to pin it, click empty sky for its bearing · Telescope: drag to look, W A S D fly, Q E down / up, shift boost, scroll speed</p>
     <p class="muted">By Kyler Simzer · MIT licence · <a href="https://github.com/kylersimzer/Sunstrology" target="_blank" rel="noopener">source</a> · <a href="classic/">the original almanac (v1)</a></p>
     <div class="dlg-actions"><span class="grow"></span><button class="btn" id="closeAbout">Close</button></div>
   </div>
