@@ -4,7 +4,8 @@ import { STATIONS, ROMAN, WORLDS, PATTERNS, ASPECT_MEANING, patternText, natalRe
   PROMPTS, dataBlock, pairBlock, badgeDetail } from './meaning.js';
 import { drawWheel, sealSVG, stationSVG, drawPoster, radiusToAU, edgeSVG } from './wheel.js';
 import { createTelescope } from './telescope.js';
-import { WANDERERS, wandererAt, PROBES, probeAt, MOON_NOTES, climbing, nextPerihelion, moonFromKey } from './objects.js';
+import { createPixelField } from './pixel.js';
+import { WANDERERS, wandererAt, PROBES, probeAt, MOON_NOTES, climbing, nextPerihelion, moonFromKey, KIND } from './objects.js';
 
 const $ = id => document.getElementById(id);
 const $$ = (sel, el = document) => [...el.querySelectorAll(sel)];
@@ -74,7 +75,8 @@ const S = {
   view: 'sky', viewJd: jdFromDate(new Date()), nowJd: jdFromDate(new Date()),
   playing: false, speed: 30, scale: 'even', aspects: true, hover: null, focus: null,
   layers: { moons: true, wanderers: true, probes: true, retro: false, trails: true },
-  zoom: 1, panX: 0, panY: 0, pin: null, pings: [],
+  zoom: 1, panX: 0, panY: 0, pin: null, pings: [], mouse: null, zoomTo: null,
+  style: localStorage.getItem('sun.style') || 'pixels',
   pairWith: null, guest: null, oracleMode: 'daily', posterTheme: 'dark',
   chartCache: new Map(), geom: null, t: 0, dirty: true, lastInspect: 0,
 };
@@ -211,6 +213,7 @@ function shareLink(p) {
 
 /* ---------- stage: canvas ---------- */
 const cv = $('wheel'), g = cv.getContext('2d');
+const field = createPixelField();
 function resize() {
   const r = cv.getBoundingClientRect(), dpr = Math.min(2, window.devicePixelRatio || 1);
   if (!r.width) return;
@@ -235,32 +238,49 @@ function draw() {
   g.clearRect(0, 0, W, H);
   const { chart, natal, other, sub, otherSub } = stageCharts();
   const narrow = W < 520, top = narrow ? 46 : 0;
-  const R0 = Math.min(W, H - top) / 2 - (narrow ? 10 : 36), R = R0 * S.zoom;
+  const R0 = Math.min(W, H - top) / 2 - (narrow ? (S.layers.probes ? 26 : 10) : 38), R = R0 * S.zoom;   // a little room outside the ring for the spacecraft markers
   const cx = W / 2 + S.panX, cy = top + (H - top) / 2 + (narrow ? 0 : 4) + S.panY;
-  S.geom = drawWheel(g, { chart, natal, other, scale: S.scale, cx, cy, R, hover: S.hover, focus: S.focus, pin: S.pin, showAspects: S.aspects, t: S.t, earthSub: sub, otherSub, ...S.layers });
-  S.geom.chart = chart; S.geom.other = other;
-  // bearing pings: a ripple and a readout where you tapped empty sky
-  const I = getComputedStyle(document.documentElement).getPropertyValue('--ink').trim(), now = performance.now();
+  const params = { chart, natal, other, scale: S.scale, cx, cy, R, hover: S.hover, focus: S.focus, pin: S.pin, showAspects: S.aspects, t: S.t, earthSub: sub, otherSub, ...S.layers };
+  const css = getComputedStyle(document.documentElement), I = css.getPropertyValue('--ink').trim(), now = performance.now();
   S.pings = S.pings.filter(p => now - p.t0 < 2400);
-  S.pings.forEach(p => {
-    const [px, py] = [S.geom.cx + p.dx * S.zoom, S.geom.cy + p.dy * S.zoom], e = (now - p.t0) / 900, fa = Math.max(0, 1 - (now - p.t0) / 2400);
-    if (e < 1) { g.strokeStyle = `rgba(${I}, ${0.7 * (1 - e)})`; g.lineWidth = 1.2; g.beginPath(); g.arc(px, py, 8 + e * 54, 0, Math.PI * 2); g.stroke(); }
-    g.strokeStyle = `rgba(${I}, ${0.85 * fa})`; g.lineWidth = 1; g.beginPath(); g.moveTo(px - 6, py); g.lineTo(px + 6, py); g.moveTo(px, py - 6); g.lineTo(px, py + 6); g.stroke();
-    if (p.label) {
-      g.font = "500 10px 'Geist Mono', ui-monospace, monospace"; g.textAlign = 'left'; g.textBaseline = 'middle';
-      const tw = g.measureText(p.label).width;
-      g.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--bg-raised').trim() || '#121315'; g.globalAlpha = 0.92 * fa;
-      g.fillRect(px + 10, py - 21, tw + 14, 18); g.globalAlpha = 1;
-      g.fillStyle = `rgba(${I}, ${fa})`; g.fillText(p.label, px + 17, py - 12);
+  // bearing pings: a ripple and a readout where you tapped empty sky ('shape', 'label' or both)
+  const pings = (c, part) => S.pings.forEach(p => {
+    const px = cx + p.dx * S.zoom, py = cy + p.dy * S.zoom, e = (now - p.t0) / 900, fa = Math.max(0, 1 - (now - p.t0) / 2400);
+    if (part !== 'label') {
+      if (e < 1) { c.strokeStyle = `rgba(${I}, ${0.7 * (1 - e)})`; c.lineWidth = 1.2; c.beginPath(); c.arc(px, py, 8 + e * 54, 0, Math.PI * 2); c.stroke(); }
+      c.strokeStyle = `rgba(${I}, ${0.85 * fa})`; c.lineWidth = 1; c.beginPath(); c.moveTo(px - 6, py); c.lineTo(px + 6, py); c.moveTo(px, py - 6); c.lineTo(px, py + 6); c.stroke();
+    }
+    if (p.label && part !== 'shape') {
+      c.font = "500 10px 'Geist Mono', ui-monospace, monospace"; c.textAlign = 'left'; c.textBaseline = 'middle';
+      const tw = c.measureText(p.label).width;
+      c.fillStyle = css.getPropertyValue('--bg-raised').trim() || '#121315'; c.globalAlpha = 0.92 * fa;
+      c.fillRect(px + 10, py - 21, tw + 14, 18); c.globalAlpha = 1;
+      c.fillStyle = `rgba(${I}, ${fa})`; c.fillText(p.label, px + 17, py - 12);
     }
   });
+  if (S.style === 'pixels') {
+    // the LED panel: everything but text drawn as dots; the text laid on top, crisp
+    field.render(g, W, H, {
+      pitch: 3, dpr: Math.min(2, window.devicePixelRatio || 1), t: S.t, mouse: S.mouse, ink: I, bg: css.getPropertyValue('--bg').trim() || '#000',
+      persist: S.playing ? 0.93 : 0.55, still: matchMedia('(prefers-reduced-motion: reduce)').matches,
+      space: { cx, cy, R, scale: S.scale, toAU: rr => radiusToAU(rr, R, S.scale) },
+      paint: c => { drawWheel(c, { ...params, only: 'matter', labels: false }); pings(c, 'shape'); },
+    });
+    // the structure stays crisp: rings, orbits, lines, markers and labels over the field
+    S.geom = drawWheel(g, { ...params, only: 'structure' });
+    pings(g, 'label');
+  } else {
+    S.geom = drawWheel(g, params);
+    pings(g);
+  }
+  S.geom.chart = chart; S.geom.other = other;
   // a pinned card follows its world, even while time plays
   S.fc = (S.fc || 0) + 1;
   if (S.pin && S.geom.pos[S.pin]) { if (S.fc % 3 === 0) { const [px, py] = S.geom.pos[S.pin]; showTip(S.pin, px + 14, py - 8); } }
   else if (S.pin) { S.pin = null; showTip(null); }
 }
 /* ---------- zoom and pan (scroll, drag, pinch, double-click to reset) ---------- */
-const ZMIN = 0.6, ZMAX = 12;
+const ZMIN = 0.12, ZMAX = 12;   // far enough out to take in the spacecraft on every scale
 function zoomAt(nz, mx, my) {
   nz = Math.max(ZMIN, Math.min(ZMAX, nz));
   const r = cv.getBoundingClientRect(), narrow = r.width < 520, top = narrow ? 46 : 0;
@@ -275,7 +295,13 @@ function clampPan() {
   const r = cv.getBoundingClientRect(), lim = Math.min(r.width, r.height) * 0.62 * S.zoom;
   S.panX = Math.max(-lim, Math.min(lim, S.panX)); S.panY = Math.max(-lim, Math.min(lim, S.panY));
 }
-function resetView() { S.zoom = 1; S.panX = 0; S.panY = 0; S.dirty = true; renderZoom(); }
+/* ---------- zoom out to a spacecraft: fit its real point on screen (Reset brings you back) ---------- */
+function zoomToFit(code) {
+  const pt = S.geom?.pos[code + '#real']; if (!pt) return;
+  const r = cv.getBoundingClientRect(), d1 = Math.hypot(pt[0] - S.geom.cx, pt[1] - S.geom.cy) / S.zoom;
+  S.zoomTo = Math.max(ZMIN, Math.min(S.zoom, (Math.min(r.width, r.height) / 2 - 56) / (d1 + 10)));
+}
+function resetView() { S.zoomTo = null; S.zoom = 1; S.panX = 0; S.panY = 0; S.dirty = true; renderZoom(); }
 function renderZoom() { $('zoomVal').textContent = Math.round(S.zoom * 100) + '%'; $('zoomReset').hidden = S.zoom === 1 && !S.panX && !S.panY; }
 /* ---------- the Telescope (three.js, loaded on first open) ---------- */
 let scope = null, scopeLoading = null;
@@ -311,6 +337,13 @@ function loop(now) {
   const dt = Math.min(0.1, (now - lastT) / 1000); lastT = now;
   S.t += dt;
   const stage = !$('stageView').hidden;
+  if (S.zoomTo != null) {
+    // a smooth zoom back toward the Sun (used when you click a spacecraft's marker)
+    const e = Math.min(1, dt * 3.4);
+    S.zoom += (S.zoomTo - S.zoom) * e; S.panX -= S.panX * e; S.panY -= S.panY * e;
+    if (Math.abs(S.zoomTo - S.zoom) < 0.002) { S.zoom = S.zoomTo; S.panX = 0; S.panY = 0; S.zoomTo = null; }
+    S.dirty = true; renderZoom();
+  }
   if (S.playing) {
     S.viewJd += S.speed * dt;
     if (S.viewJd >= JD_MAX) { S.viewJd = JD_MAX; togglePlay(false); }
@@ -339,15 +372,19 @@ function tipHTML(code, chart) {
   if (code.startsWith('W:')) {
     const w = WANDERERS.find(q => 'W:' + q.n === code); if (!w) return '';
     const s = wandererAt(w, chart.jd), s2 = wandererAt(w, chart.jd + 15), per = nextPerihelion(w, chart.jd);
-    return `<b>${w.t === 'com' ? '☄' : '◆'} ${w.n}</b>` + kv('Kind', w.t === 'com' ? 'comet' : 'asteroid') + kv('Station', STATIONS[stationOf(s.lon)].name)
-      + kv('Longitude', s.lon.toFixed(1) + '°') + kv('From the Sun', s.r.toFixed(2) + ' AU') + kv('Heading', s2.r < s.r ? 'inbound, toward the Sun' : 'outbound')
-      + kv('Next round the Sun', per <= JD_MAX ? fmtJd(per) : dateFromJd(per).getUTCFullYear())
-      + `<div class="note">${esc(w.d[0].toUpperCase() + w.d.slice(1))}. ${w.n === 'Apophis' ? 'Track valid until its April 2029 Earth encounter.' : 'A two-body track from epoch elements.'}</div>`;
+    const glyph = { com: '☄', ast: '◆', dwarf: '◎', isv: '✕' }[w.t];
+    const when = w.t === 'isv' ? kv(w.T > chart.jd ? 'Closest to the Sun' : 'Passed the Sun', fmtJd(w.T)) : kv('Next round the Sun', per <= JD_MAX ? fmtJd(per) : dateFromJd(per).getUTCFullYear());
+    const note = w.t === 'isv' ? 'An open path: it came in from another star, rounds the Sun once and leaves for good.'
+      : w.n === 'Apophis' ? 'Track valid until its April 2029 Earth encounter.' : w.t === 'dwarf' ? 'Placed from approximate orbital elements.' : 'A two-body track from epoch elements.';
+    return `<b>${glyph} ${w.n}</b>` + kv('Kind', KIND[w.t]) + kv('Station', STATIONS[stationOf(s.lon)].name)
+      + kv('Longitude', s.lon.toFixed(1) + '°') + kv('From the Sun', s.r.toFixed(s.r > 20 ? 1 : 2) + ' AU') + kv('Heading', s2.r < s.r ? 'inbound, toward the Sun' : 'outbound') + when
+      + `<div class="note">${esc(w.d[0].toUpperCase() + w.d.slice(1))}. ${note}</div>`;
   }
   if (code.startsWith('P:')) {
-    const p = PROBES.find(q => 'P:' + q.n === code), s = p && probeAt(p, chart.jd); if (!s) return '';
-    return `<b>⟶ ${p.n}</b>` + kv('From the Sun', s.r.toFixed(1) + ' AU') + kv('Radio, one way', s.lightHours.toFixed(1) + ' hours') + kv('Heading toward', STATIONS[stationOf(p.lam)].name)
-      + `<div class="note">${esc(p.d[0].toUpperCase() + p.d.slice(1))}. Far past the edge of this drawing, so it sits on the rim, pointing the way it is going. Distance true, direction approximate.</div>`;
+    const real = code.endsWith('#real'), p = PROBES.find(q => 'P:' + q.n === code.replace('#real', '')), s = p && probeAt(p, chart.jd); if (!s) return '';
+    return `<b>⟶ ${p.n}</b>` + kv('From the Sun', s.r.toFixed(1) + ' AU') + kv('That is', (s.r / 39.5).toFixed(1) + '× Pluto’s distance') + kv('Radio, one way', s.lightHours.toFixed(1) + ' hours')
+      + kv('Heading toward', STATIONS[stationOf(p.lam)].name) + kv('Above the plane', `${p.bet > 0 ? '+' : ''}${p.bet}°`) + kv('Heliosphere', s.outside ? 'left it: interstellar space' : 'still inside')
+      + `<div class="note">${esc(p.d[0].toUpperCase() + p.d.slice(1))}. ${s.rTop <= 46 ? 'Still among the planets, drawn where it is.' : real ? `This dot is where it really is, ${s.rTop.toFixed(0)} AU out across the plane, on this map's own scale. Reset brings you back.` : 'The marker on the rim shows the way it is heading. Its real position is the dot further out along the dashed line: click to zoom out to it.'}</div>`;
   }
   if (code.startsWith('M:')) {
     const m = moonFromKey(code); if (!m) return '';
@@ -388,6 +425,7 @@ const local = e => { const r = cv.getBoundingClientRect(); return [e.clientX - r
 cv.addEventListener('pointerdown', e => {
   pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
   drag = { x: e.clientX, y: e.clientY, moved: 0 };
+  { const [mx, my] = local(e); S.mouse = { x: mx, y: my }; }
   cv.setPointerCapture(e.pointerId);
 });
 cv.addEventListener('pointermove', e => {
@@ -404,6 +442,7 @@ cv.addEventListener('pointermove', e => {
     return;
   }
   if (pts.has(e.pointerId)) pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  { const [mx, my] = local(e); S.mouse = { x: mx, y: my }; }
   if (drag && pts.size === 1) {
     const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
     drag.moved += Math.abs(dx) + Math.abs(dy);
@@ -420,17 +459,18 @@ cv.addEventListener('pointermove', e => {
 const release = e => {
   pts.delete(e.pointerId);
   if (pts.size === 1) { const p = [...pts.values()][0]; if (drag) { drag.x = p.x; drag.y = p.y; } }
-  if (!pts.size) { cv.classList.remove('grabbing'); if (drag && drag.moved <= 4) tap(e); drag = null; }
+  if (!pts.size) { cv.classList.remove('grabbing'); if (drag && drag.moved <= 4) tap(e); drag = null; if (e.pointerType === 'touch') setTimeout(() => { S.mouse = null; }, 600); }
 };
 cv.addEventListener('pointerup', release);
 cv.addEventListener('pointercancel', e => { pts.delete(e.pointerId); if (!pts.size) { drag = null; cv.classList.remove('grabbing'); } });
-cv.addEventListener('pointerleave', () => { if (pts.size) return; S.hover = null; S.dirty = true; if (!S.pin) showTip(null); });
+cv.addEventListener('pointerleave', () => { S.mouse = null; if (pts.size) return; S.hover = null; S.dirty = true; if (!S.pin) showTip(null); });
 // a tap or click: on a world, pin its card (and focus its lines); on empty sky, ping the bearing
 function tap(e) {
   const [x, y] = local(e), h = hit(x, y);
   if (h) {
     S.pin = S.pin === h ? null : h;
     S.focus = S.pin && !S.pin.includes(':') ? S.pin : null;
+    if (h.startsWith('P:') && !h.endsWith('#real') && S.pin && S.geom.pos[h + '#real']) { zoomToFit(h); S.pin = h + '#real'; }
     S.hover = h;
     if (!S.pin) showTip(null);
   } else {
@@ -495,6 +535,12 @@ $('toNow').onclick = () => { S.viewJd = S.nowJd; if (S.view === 'chart') locatio
 $('toBirth').onclick = () => { const p = active(); if (!p) return openPerson(); S.viewJd = personJd(p); S.dirty = true; syncTime(); renderInspector(); };
 $('speedSeg').onclick = e => { const b = e.target.closest('button'); if (!b) return; S.speed = +b.dataset.speed; $$('#speedSeg button').forEach(x => x.classList.toggle('on', x === b)); };
 $('scaleSeg').onclick = e => { const b = e.target.closest('button'); if (!b) return; S.scale = b.dataset.scale; $$('#scaleSeg button').forEach(x => x.classList.toggle('on', x === b)); S.dirty = true; };
+function setStyle(st) {
+  S.style = st; localStorage.setItem('sun.style', st); field.reset();
+  $$('#styleSeg button').forEach(b => b.classList.toggle('on', b.dataset.style === st));
+  S.dirty = true;
+}
+$('styleSeg').onclick = e => { const b = e.target.closest('button'); if (b) setStyle(b.dataset.style); };
 function setLayer(name, on) {
   if (name === 'aspects') { S.aspects = on; $('legend').style.opacity = on ? 1 : 0; } else S.layers[name] = on;
   const box = document.querySelector(`[data-layer="${name}"]`); if (box) box.checked = on;
@@ -530,7 +576,7 @@ function inspectSky() {
       : '<p class="small">No tight lines today. The sky is leaving you alone.</p>';
     h += '</div>';
   } else {
-    h += emptyCTA('This is the sky right now, seen from the Sun. Add your birthday to see how today’s sky lines up with yours, and get a daily solar weather report.');
+    h += emptyCTA('This is where every planet is right now, seen from the Sun. Add your birthday to see how the solar system was laid out on the day you were born: where Earth stood, and the shape the planets made around it.');
   }
   h += `<div class="sec"><div class="label">Earth ${today ? 'now' : 'then'}</div>
     <div class="hero"><div class="hero-glyph">${stationSVG(now.station, 32)}</div><div><h1>${st.name}</h1><div class="sub">STATION ${ROMAN[now.station]} · ${st.gloss.toUpperCase()}</div></div></div>
@@ -794,6 +840,7 @@ document.addEventListener('keydown', e => {
   else if (k === 'n' || k === 'N') $('toNow').click();
   else if (k === 'b' || k === 'B') $('toBirth').click();
   else if (k === 'l' || k === 'L') setLayer('aspects', !S.aspects);
+  else if ((k === 'p' || k === 'P') && S.view !== 'telescope') setStyle(S.style === 'pixels' ? 'lines' : 'pixels');
   else if (k === 'Escape') { S.focus = null; S.pin = null; showTip(null); S.dirty = true; renderHud(); }
   else if (S.view !== 'telescope' && (k === '+' || k === '=')) zoomAt(S.zoom * 1.4);
   else if (S.view !== 'telescope' && (k === '-' || k === '_')) zoomAt(S.zoom / 1.4);
@@ -803,6 +850,7 @@ document.addEventListener('keydown', e => {
 /* ---------- boot ---------- */
 function boot() {
   applyTheme();
+  setStyle(S.style);
   $('brandMark').innerHTML = MARK(); $('brandMarkM').innerHTML = MARK(); $('dlgMark').innerHTML = MARK();
   $('tzSelect').innerHTML = TZS.map(z => `<option value="${z}" ${z === HOME_TZ ? 'selected' : ''}>${z.replace(/_/g, ' ')}</option>`).join('');
   paintIcons();

@@ -24,9 +24,21 @@ export const WANDERERS = [
   { n: '55P/T-Tuttle', d: 'parent of the Leonids, the storm-maker', t: 'com', a: 10.3453, e: 0.9056, i: 162.49, O: 235.27, w: 172.50, T: 2450872.5, P: 12153.9 },
   { n: '109P/S-Tuttle', d: 'parent of the Perseids', t: 'com', a: 26.0734, e: 0.9632, i: 113.45, O: 139.38, w: 152.98, T: 2448968.5, P: 48628.9 },
   { n: 'C/1861 Thatcher', d: 'parent of the Lyrids, next back around 2283', t: 'com', a: 55.8000, e: 0.9835, i: 79.77, O: 31.87, w: 213.45, T: 2400924.9, P: 152247.3 },
+  // dwarf planets beyond Neptune (approximate J2000 elements; positions good to a degree or two)
+  { n: 'Eris', d: 'the most massive dwarf planet, the find that got Pluto reclassified', t: 'dwarf', a: 67.86, e: 0.4361, i: 44.04, O: 35.95, w: 150.98, T: 2545760, P: 204199 },
+  { n: 'Sedna', d: 'one lap round the Sun takes over 11,000 years; it is on its way in, closest in 2076', t: 'dwarf', a: 506, e: 0.8496, i: 11.93, O: 144.40, w: 311.1, T: 2479377, P: 4159000 },
+  { n: 'Gonggong', d: 'a red dwarf planet with a small moon of its own', t: 'dwarf', a: 67.5, e: 0.50, i: 30.9, O: 336.8, w: 207.6, T: 2399350, P: 202300 },
+  { n: 'Makemake', d: 'a bright, icy dwarf planet', t: 'dwarf', a: 45.43, e: 0.161, i: 28.98, O: 79.62, w: 294.8, T: 2519700, P: 111800 },
+  { n: 'Haumea', d: 'spins every four hours, stretched into an egg shape, with a ring', t: 'dwarf', a: 43.1, e: 0.195, i: 28.2, O: 122.2, w: 239.0, T: 2500200, P: 103400 },
+  // visitors from other stars: open (hyperbolic) paths, past the Sun once and leaving for good. q is the closest approach.
+  { n: '1I/ʻOumuamua', d: 'the first known visitor from another star, found in 2017', t: 'isv', q: 0.2559, e: 1.2011, i: 122.74, O: 24.60, w: 241.81, T: 2458006.0 },
+  { n: '2I/Borisov', d: 'the first comet known to come from another star, found in 2019', t: 'isv', q: 2.0066, e: 3.3565, i: 44.05, O: 308.15, w: 209.12, T: 2458826.0 },
+  { n: '3I/ATLAS', d: 'the third visitor from another star; it passed the Sun in October 2025', t: 'isv', q: 1.357, e: 6.14, i: 175.11, O: 322.16, w: 128.0, T: 2460977.98 },
 ];
+export const KIND = { ast: 'asteroid', com: 'comet', dwarf: 'dwarf planet', isv: 'interstellar visitor' };
 
 export function wandererAt(w, jd) {
+  if (w.e >= 1) return hyperbolicAt(w, jd);
   let M = ((jd - w.T) / w.P) * Math.PI * 2;
   M = ((M % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI); if (M > Math.PI) M -= 2 * Math.PI;
   let lo = -Math.PI, hi = Math.PI;
@@ -39,20 +51,40 @@ export function wandererAt(w, jd) {
   const x = r * (cO * cu - sO * su * ci), y = r * (sO * cu + cO * su * ci), z = r * su * si;
   return { x, y, z, r, lon: normDeg(Math.atan2(y, x) * R2D) };
 }
-/** The next time a wanderer rounds the Sun (perihelion) after jd. */
-export const nextPerihelion = (w, jd) => w.T + Math.ceil((jd - w.T) / w.P) * w.P;
+// An open orbit: the hyperbolic form of Kepler's equation, M = e sinh H − H.
+function hyperbolicAt(w, jd) {
+  const a = w.q / (1 - w.e), n = 0.01720209895 / Math.pow(-a, 1.5), M = n * (jd - w.T);
+  let H = Math.asinh(M / w.e);
+  for (let k = 0; k < 50; k++) { const d = (w.e * Math.sinh(H) - H - M) / (w.e * Math.cosh(H) - 1); H -= d; if (Math.abs(d) < 1e-12) break; }
+  const r = a * (1 - w.e * Math.cosh(H)), nu = 2 * Math.atan(Math.sqrt((w.e + 1) / (w.e - 1)) * Math.tanh(H / 2));
+  const u = nu + w.w * D2R, cu = Math.cos(u), su = Math.sin(u);
+  const cO = Math.cos(w.O * D2R), sO = Math.sin(w.O * D2R), ci = Math.cos(w.i * D2R), si = Math.sin(w.i * D2R);
+  const x = r * (cO * cu - sO * su * ci), y = r * (sO * cu + cO * su * ci), z = r * su * si;
+  return { x, y, z, r, lon: normDeg(Math.atan2(y, x) * R2D) };
+}
 
-/* ---------- the three machines leaving the solar system (distances true; escape directions approximate) ---------- */
+/** The next time a wanderer rounds the Sun (perihelion) after jd. */
+export const nextPerihelion = (w, jd) => w.e >= 1 ? null : w.T + Math.ceil((jd - w.T) / w.P) * w.P;
+
+/* ---------- the three machines leaving the solar system ----------
+   Distances follow the missions' published tracks; directions are each craft's heading on the sky, converted to
+   ecliptic longitude and latitude (Voyager 1: RA 17h13m, Dec +12°; Voyager 2: RA 20h04m, Dec −58°; New Horizons:
+   RA 19h50m, Dec −20°), good to a couple of degrees. */
+export const TERMINATION_AU = 90;   // where the solar wind abruptly slows (Voyager 1 crossed at 94 AU in 2004, Voyager 2 at 84 AU in 2007)
+export const HELIOPAUSE_AU = 120;   // where the Sun's wind gives way to interstellar space (Voyager 1 crossed at 121.6 AU in 2012, Voyager 2 at 119 AU in 2018)
 const yr = jd => 2000 + (jd - J2000) / 365.25;
 export const PROBES = [
   { n: 'Voyager 1', tag: 'V1', d: 'the farthest human-made object', lam: 256, bet: 35, at: jd => { const y = yr(jd); if (y < 1977.68) return null; return y < 1980.87 ? 1 + (y - 1977.68) / (1980.87 - 1977.68) * 8.5 : y < 2006.6 ? 9.5 + (y - 1980.87) / (2006.6 - 1980.87) * 90.5 : 100 + 3.57 * (y - 2006.6); } },
-  { n: 'Voyager 2', tag: 'V2', d: 'the grand tourist: four worlds visited', lam: 290, bet: -48, at: jd => { const y = yr(jd); if (y < 1977.63) return null; return y < 1989.65 ? 1 + (y - 1977.63) / (1989.65 - 1977.63) * 29.1 : 30.1 + 3.13 * (y - 1989.65); } },
-  { n: 'New Horizons', tag: 'NH', d: 'flew past Pluto in 2015', lam: 289, bet: 2, at: jd => { const y = yr(jd); if (y < 2006.05) return null; return y < 2015.54 ? 1 + (y - 2006.05) / (2015.54 - 2006.05) * 31.9 : 32.9 + 2.95 * (y - 2015.54); } },
+  { n: 'Voyager 2', tag: 'V2', d: 'the grand tourist: four worlds visited', lam: 289, bet: -37, at: jd => { const y = yr(jd); if (y < 1977.63) return null; return y < 1989.65 ? 1 + (y - 1977.63) / (1989.65 - 1977.63) * 29.1 : 30.1 + 3.13 * (y - 1989.65); } },
+  // the Pioneers fell silent (Pioneer 11 in 1995, Pioneer 10 in 2003) but are still coasting outward; distances extrapolated
+  { n: 'Pioneer 10', tag: 'P10', d: 'silent since 2003, coasting toward the star Aldebaran', lam: 80, bet: 3, at: jd => { const y = yr(jd); if (y < 1972.17) return null; return y < 1973.92 ? 1 + (y - 1972.17) / 1.75 * 4.2 : y < 2003.06 ? 5.2 + (y - 1973.92) * 2.646 : 82.3 + 2.54 * (y - 2003.06); } },
+  { n: 'Pioneer 11', tag: 'P11', d: 'silent since 1995, coasting toward the constellation Aquila', lam: 283, bet: 14.5, at: jd => { const y = yr(jd); if (y < 1973.26) return null; return y < 1974.92 ? 1 + (y - 1973.26) / 1.66 * 4.2 : y < 1979.67 ? 5.2 + (y - 1974.92) / 4.75 * 4.3 : 9.5 + 2.2 * (y - 1979.67); } },
+  { n: 'New Horizons', tag: 'NH', d: 'flew past Pluto in 2015', lam: 296, bet: 1, at: jd => { const y = yr(jd); if (y < 2006.05) return null; return y < 2015.54 ? 1 + (y - 2006.05) / (2015.54 - 2006.05) * 31.9 : 32.9 + 2.95 * (y - 2015.54); } },
 ];
 export function probeAt(p, jd) {
   const r = p.at(jd); if (r == null) return null;
   const cb = Math.cos(p.bet * D2R);
-  return { r, lon: p.lam, x: r * cb * Math.cos(p.lam * D2R), y: r * cb * Math.sin(p.lam * D2R), z: r * Math.sin(p.bet * D2R), lightHours: r * AUm / C_LIGHT / 3600 };
+  return { r, lon: p.lam, rTop: r * cb, x: r * cb * Math.cos(p.lam * D2R), y: r * cb * Math.sin(p.lam * D2R), z: r * Math.sin(p.bet * D2R), lightHours: r * AUm / C_LIGHT / 3600, outside: r > HELIOPAUSE_AU };
 }
 
 /* ---------- moons: Luna (Meeus ch. 47), the Galileans (Meeus ch. 44), fitted moons of Mars, Saturn and Uranus, Triton ---------- */

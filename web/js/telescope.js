@@ -4,7 +4,7 @@
 import { PLANETS, orbitPath, D2R } from './astro.js';
 import { STATIONS } from './meaning.js';
 import { SCALES } from './wheel.js';
-import { WANDERERS, wandererAt, PROBES, probeAt, moonSystems, MOON_NAMES, MOON_ORBITS } from './objects.js';
+import { WANDERERS, wandererAt, PROBES, probeAt, moonSystems, MOON_NAMES, MOON_ORBITS, HELIOPAUSE_AU, TERMINATION_AU } from './objects.js';
 
 const THREE_URL = 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
 let THREE = null;
@@ -152,7 +152,8 @@ export async function createTelescope(wrap, { onHover } = {}) {
   const wandGroup = new THREE.Group(); scene.add(wandGroup);
   const wands = WANDERERS.map(w => {
     const com = w.t === 'com';
-    const mesh = new THREE.Mesh(new THREE.SphereGeometry(com ? 0.7 : 0.6, 10, 8), new THREE.MeshBasicMaterial({ color: com ? 0xdedcd6 : 0xaeaca6 }));
+    const big = w.t === 'dwarf';
+    const mesh = new THREE.Mesh(new THREE.SphereGeometry(big ? 1.1 : com ? 0.7 : 0.6, 10, 8), new THREE.MeshBasicMaterial({ color: com || w.t === 'isv' ? 0xdedcd6 : big ? 0xc9c7c0 : 0xaeaca6 }));
     const hit = new THREE.Mesh(new THREE.SphereGeometry(4, 6, 4), new THREE.MeshBasicMaterial({ visible: false })); hit.userData.code = 'W:' + w.n; mesh.add(hit); hits.push(hit);
     const pip = sprite(PIP, 0.007, 0.007, true, 0.7, true);
     const label = sprite(textTex([{ text: w.n.toUpperCase(), size: 22, y: 26, color: ink(0.6) }]), 0.16, 0.04, false, 0.5, true); label.center.set(0.5, -0.3);
@@ -213,8 +214,17 @@ export async function createTelescope(wrap, { onHover } = {}) {
       lbl.position.set(Math.cos(mid) * (R + 8), 4, -Math.sin(mid) * (R + 8)); lbl.userData.station = s;
       stations.add(lbl);
     }
+    // the heliopause: where the Sun's wind gives way to interstellar space
+    const ts = new THREE.Line(new THREE.BufferGeometry().setFromPoints(circlePts(farRadius(TERMINATION_AU), 200)), new THREE.LineDashedMaterial({ color: 0xffffff, transparent: true, opacity: 0.1, dashSize: 2, gapSize: 7 }));
+    ts.computeLineDistances(); stations.add(ts);
+    const hp = new THREE.Line(new THREE.BufferGeometry().setFromPoints(circlePts(farRadius(HELIOPAUSE_AU), 200)), new THREE.LineDashedMaterial({ color: 0xffffff, transparent: true, opacity: 0.16, dashSize: 4, gapSize: 6 }));
+    hp.computeLineDistances(); stations.add(hp);
+    const hpl = sprite(textTex([{ text: `HELIOPAUSE · ${HELIOPAUSE_AU} AU`, size: 22, y: 40, color: ink(0.45) }]), 0.18, 0.045, false, 1, true);
+    hpl.position.set(Math.cos(118 * D2R) * farRadius(HELIOPAUSE_AU), 4, -Math.sin(118 * D2R) * farRadius(HELIOPAUSE_AU)); stations.add(hpl);
     T.orbitKey = null;
   }
+  // beyond the station ring: 46 AU at the ring, 200 AU well past it, on a log scale
+  const farRadius = au => f()(au) * T.unit;   // the map's own scale, carried on past Pluto
   function buildOrbits(jd) {
     dispose(orbits);
     PLANETS.forEach(p => {
@@ -273,7 +283,7 @@ export async function createTelescope(wrap, { onHover } = {}) {
     wandGroup.visible = wanderers;
     if (wanderers) wands.forEach(it => {
       const s = wandererAt(it.w, chart.jd), v = P3(s.x, s.y, s.z);
-      const show = s.r <= RMAX * 1.3;
+      const show = s.r <= 260;
       it.mesh.visible = it.pip.visible = it.label.visible = show; if (it.tail) it.tail.visible = show;
       if (!show) return;
       it.mesh.position.copy(v); it.pip.position.copy(v); it.label.position.copy(v);
@@ -284,7 +294,9 @@ export async function createTelescope(wrap, { onHover } = {}) {
     if (showProbes) probes.forEach(it => {
       const s = probeAt(it.p, chart.jd); it.mesh.visible = it.pip.visible = it.label.visible = !!s;
       if (!s) return;
-      const v = P3(s.x, s.y, s.z); it.mesh.position.copy(v); it.pip.position.copy(v); it.label.position.copy(v);
+      // past the planets they go beyond the station ring: true direction (height above the plane included), distance squeezed
+      const v = s.r > RMAX ? new THREE.Vector3(s.x, s.z, -s.y).normalize().multiplyScalar(farRadius(s.r)) : P3(s.x, s.y, s.z);
+      it.mesh.position.copy(v); it.pip.position.copy(v); it.label.position.copy(v);
     });
     // moons
     const SYS = moons ? moonSystems(chart) : null;

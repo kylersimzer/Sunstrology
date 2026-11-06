@@ -53,6 +53,9 @@ i[data-ico] svg { width: 100%; height: 100%; }
 .layers-menu label:hover { background: var(--bg-3); color: var(--fg); }
 .layers-menu input { accent-color: var(--fg); margin: 0; }
 .layers-menu span { flex: 1; }
+.layers-style { display: flex; align-items: center; gap: 9px; height: 34px; padding: 0 8px; margin-bottom: 4px; border-bottom: 1px solid var(--line); color: var(--fg-2); font-size: var(--fs-mini); }
+.layers-style span { flex: 1; }
+.layers-style .seg { background: var(--bg-2); }
 .layers-menu kbd { font: 400 var(--fs-micro) var(--mono); color: var(--fg-4); }
 .people li { display: flex; align-items: center; gap: 10px; height: 34px; padding: 0 6px 0 8px; border-radius: var(--r-6); cursor: pointer; color: var(--fg-2); }
 .people li:hover { background: var(--bg-3); color: var(--fg); }

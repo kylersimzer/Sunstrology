@@ -2,13 +2,13 @@
 // One ink at different strengths, like stems.fm and GODMIX. Aspect types are told apart by line style, not colour.
 import { PLANETS, orbitPath, normDeg, D2R, bodyState } from './astro.js';
 import { STATIONS, ROMAN, WORLDS } from './meaning.js';
-import { WANDERERS, wandererAt, PROBES, probeAt, moonSystems, MOON_NAMES } from './objects.js';
+import { WANDERERS, wandererAt, PROBES, probeAt, moonSystems, MOON_NAMES, HELIOPAUSE_AU, TERMINATION_AU } from './objects.js';
 
 // 'even' spaces the orbits evenly, like an orrery (interpolating between semi-major axes, so ellipses keep their shape).
 const RUNGS = [[0, 0], [0.387, 1], [0.723, 2], [1, 3], [1.524, 4], [5.2, 5], [9.54, 6], [19.2, 7], [30.07, 8], [39.5, 9], [60, 10.6]];
 const even = r => {
   for (let i = 1; i < RUNGS.length; i++) if (r <= RUNGS[i][0]) { const [a0, i0] = RUNGS[i - 1], [a1, i1] = RUNGS[i]; return 0.9 + i0 + (r - a0) / (a1 - a0) * (i1 - i0); }
-  return 11.5;
+  return 11.5 + (r - 60) * (1.6 / 20.5);    // carried on past Pluto at the rate of its last stretch, so far things keep their place
 };
 export const SCALES = {
   even,
@@ -20,9 +20,10 @@ const RMAX = 46;
 
 /** Screen radius → distance from the Sun in AU, for the wheel at radius R (inverts the scale). */
 export function radiusToAU(rad, R, scale = 'even') {
-  const f = SCALES[scale] || SCALES.even, rIn = R * 0.83, k = r => f(r) / f(RMAX) * rIn;
-  if (rad <= 0 || rad > k(RMAX)) return null;
-  let lo = 0, hi = RMAX;
+  const f = SCALES[scale] || SCALES.even, rIn = R * 0.83, top = 260;
+  const k = r => f(r) / f(RMAX) * rIn;
+  if (rad <= 0 || rad > k(top)) return null;
+  let lo = 0, hi = top;
   for (let i = 0; i < 40; i++) { const mid = (lo + hi) / 2; k(mid) < rad ? lo = mid : hi = mid; }
   return (lo + hi) / 2;
 }
@@ -52,7 +53,9 @@ function orbitFor(p, jd) {
 
 /**
  * Draw the wheel into a 2D context.
- * opts: { chart, natal?, other?, scale, cx, cy, R, hover?, focus?, showAspects, showOrbits, showStations, labels, t }
+ * opts: { chart, natal?, other?, scale, cx, cy, R, hover?, focus?, showAspects, showOrbits, showStations, labels, t, only? }
+ * only: 'structure' draws the crisp parts (rings, orbits, lines, markers, labels); 'matter' draws what gives off light
+ * or is made of stuff (the Sun, the worlds, trails, comets, moons), for the pixel field. Leave it out to draw both.
  * Returns the screen position of every drawn world, for hit-testing.
  */
 export function drawWheel(g, o) {
@@ -63,9 +66,10 @@ export function drawWheel(g, o) {
   const k = r => f(r) / f(RMAX) * rIn;
   const P = (lon, rad) => [cx + rad * Math.cos(lon * D2R), cy - rad * Math.sin(lon * D2R)];
   const pos = {};
+  const STR = o.only !== 'matter', MAT = o.only !== 'structure', split = !!o.only;
 
   // station ring
-  if (o.showStations !== false) {
+  if (STR && o.showStations !== false) {
     const r0 = R * 0.88, r1 = R;
     g.lineWidth = 1;
     g.strokeStyle = I.a(0.14);
@@ -105,7 +109,7 @@ export function drawWheel(g, o) {
   }
 
   // the natal wheel, ghosted on the inside edge of the station ring
-  if (o.natal) {
+  if (STR && o.natal) {
     const rr = R * 0.86;
     o.natal.bodies.forEach(b => {
       const [x, y] = P(b.lon, rr), [x2, y2] = P(b.lon, rr - 8);
@@ -115,7 +119,7 @@ export function drawWheel(g, o) {
   }
 
   // orbits
-  if (o.showOrbits !== false) {
+  if (STR && o.showOrbits !== false) {
     PLANETS.forEach(p => {
       const pts = orbitFor(p, chart.jd);
       g.beginPath();
@@ -134,7 +138,7 @@ export function drawWheel(g, o) {
   chart.bodies.forEach(b => { pos[b.code] = P(b.lon, k(b.r)); });
 
   // aspects: the seal, drawn through the actual positions
-  if (o.showAspects !== false) {
+  if (STR && o.showAspects !== false) {
     chart.aspects.forEach(a => {
       const st = LINE[a.type];
       const dim = o.focus && a.a.code !== o.focus && a.b.code !== o.focus;
@@ -147,7 +151,7 @@ export function drawWheel(g, o) {
   }
 
   // second person's worlds (compare), as rings on their own orbits
-  if (o.other) {
+  if (STR && o.other) {
     o.other.bodies.forEach(b => {
       const [x, y] = P(b.lon, k(b.r));
       g.strokeStyle = I.a(b.code === 'EAR' ? 0.95 : 0.5); g.lineWidth = 1.2;
@@ -165,7 +169,7 @@ export function drawWheel(g, o) {
   }
 
   // the retrograde illusion: from Earth these worlds would seem to slide backward (from the Sun, nothing does)
-  if (o.retro && chart.retro.size) {
+  if (STR && o.retro && chart.retro.size) {
     const [ex, ey] = pos.EAR;
     g.setLineDash([2, 4]); g.lineWidth = 1; g.strokeStyle = I.a(0.38);
     chart.retro.forEach(code => { const [x, y] = pos[code]; g.beginPath(); g.moveTo(ex, ey); g.lineTo(x, y); g.stroke(); });
@@ -177,9 +181,15 @@ export function drawWheel(g, o) {
     const small = R < 220;
     WANDERERS.forEach(w => {
       const s = wandererAt(w, chart.jd);
-      if (s.r > RMAX) return;
+      if (s.r > 260) return;
       const [x, y] = P(s.lon, k(s.r)), key = 'W:' + w.n, hov = o.hover === key;
-      if (w.t === 'com') {
+      if (!MAT) { /* structure only: no body */ }
+      else if (w.t === 'dwarf') {
+        g.strokeStyle = I.a(hov ? 1 : 0.75); g.lineWidth = 1.2; ring(g, x, y, 3.2); g.stroke();
+        g.fillStyle = I.a(hov ? 1 : 0.85); g.beginPath(); g.arc(x, y, 1.3, 0, Math.PI * 2); g.fill();
+      } else if (w.t === 'isv') {
+        g.strokeStyle = I.a(hov ? 1 : 0.8); g.lineWidth = 1.2; g.beginPath(); g.moveTo(x - 3, y - 3); g.lineTo(x + 3, y + 3); g.moveTo(x + 3, y - 3); g.lineTo(x - 3, y + 3); g.stroke();
+      } else if (w.t === 'com') {
         // the tail points away from the Sun, longer the closer the comet is
         const d = Math.hypot(x - cx, y - cy) || 1, ux = (x - cx) / d, uy = (y - cy) / d;
         const dl = Math.min(28, Math.max(5, 14 / (s.r * s.r))) * Math.max(0.8, R / 300);
@@ -190,9 +200,9 @@ export function drawWheel(g, o) {
         g.fillStyle = I.a(hov ? 1 : 0.7);
         g.save(); g.translate(x, y); g.rotate(Math.PI / 4); g.fillRect(-1.6, -1.6, 3.2, 3.2); g.restore();
       }
-      if (hov) { g.strokeStyle = I.a(0.9); g.lineWidth = 1; ring(g, x, y, 6); g.stroke(); }
+      if (STR && hov) { g.strokeStyle = I.a(0.9); g.lineWidth = 1; ring(g, x, y, 6); g.stroke(); }
       // comet names always (there are few); asteroid names on hover or when the wheel is big enough for the belt to breathe
-      if (o.labels !== false && (hov || (w.t === 'com' ? !small : R > 320))) {
+      if (STR && o.labels !== false && (hov || ((w.t === 'dwarf' || w.t === 'isv') ? true : w.t === 'com' ? !small : R > 320))) {
         g.font = `400 ${small ? 8 : 9}px 'Geist Mono', ui-monospace, monospace`;
         g.fillStyle = I.a(hov ? 0.95 : 0.36); g.textAlign = 'left'; g.textBaseline = 'middle';
         g.fillText(w.n, x + 5, y + 3);
@@ -201,30 +211,58 @@ export function drawWheel(g, o) {
     });
   }
 
-  // the spacecraft leaving: far past the drawing, so they sit on its edge, pointing the way they are going
-  if (o.probes) {
-    PROBES.forEach((p, i) => {
-      const s = probeAt(p, chart.jd); if (!s) return;
-      const rr = s.r > RMAX ? rIn + 4 : k(s.r), key = 'P:' + p.n, hov = o.hover === key;
-      const [x, y] = P(p.lam, rr), a = -p.lam * D2R;
-      g.save(); g.translate(x, y); g.rotate(a);
-      g.fillStyle = I.a(hov ? 1 : 0.75); g.beginPath(); g.moveTo(5, 0); g.lineTo(-3, -3.2); g.lineTo(-1.2, 0); g.lineTo(-3, 3.2); g.closePath(); g.fill();
-      g.restore();
-      if (hov) { g.strokeStyle = I.a(0.9); g.lineWidth = 1; ring(g, x, y, 8); g.stroke(); }
+  // the spacecraft leaving. Each has two points: a marker on the rim, pointing the way it is heading, and a point
+  // where it really is, on this same map's scale carried on past Pluto, so it sits far outside the ring (zoom out, or
+  // click the marker, to see it). Distances are across the plane, since this is the view from above. The heliosphere's
+  // two edges are drawn on the same scale.
+  if (STR && o.probes && PROBES.some(p => probeAt(p, chart.jd))) {
+    [[TERMINATION_AU, 'TERMINATION SHOCK', 0.12, [1, 5]], [HELIOPAUSE_AU, 'HELIOPAUSE', 0.22, [2, 5]]].forEach(([au, name, al, dash], j) => {
+      const hr = k(au);
+      g.setLineDash(dash); g.strokeStyle = I.a(al); g.lineWidth = 1; ring(g, cx, cy, hr); g.stroke(); g.setLineDash([]);
       if (o.labels !== false) {
-        // short tags (V1, V2, NH); the full name and distance on hover
-        g.font = `500 ${R > 220 ? 9 : 8}px 'Geist Mono', ui-monospace, monospace`;
-        g.fillStyle = I.a(hov ? 0.95 : 0.45); g.textBaseline = 'middle';
-        const tag = hov ? `${p.n.toUpperCase()} · ${Math.round(s.r)} AU` : p.tag;
-        const [tx, ty] = P(p.lam, rr - 13);
-        g.textAlign = 'center'; g.fillText(tag, tx + (hov ? 0 : [0, -10, 10][i]), ty + (hov ? [0, -10, 10][i] : 0));
+        const at = 118 + j * 5;
+        g.save(); g.translate(...P(at, hr + 7)); g.rotate(-at * D2R + Math.PI / 2 + Math.PI);
+        g.font = "500 8px 'Geist Mono', ui-monospace, monospace"; g.fillStyle = I.a(0.38); g.textAlign = 'center'; g.textBaseline = 'middle';
+        g.fillText(`${name} · ~${au} AU`, 0, 0); g.restore();
       }
-      pos[key] = [x, y];
+    });
+  }
+  if (o.probes) {
+    const rim = R * 1.035, live = PROBES.map(p => [p, probeAt(p, chart.jd)]).filter(x => x[1]);
+    live.forEach(([p, s], i) => {
+      const real = k(s.rTop), key = 'P:' + p.n, rkey = key + '#real', inside = s.rTop <= RMAX;
+      const hov = [key, rkey].includes(o.hover) || [key, rkey].includes(o.pin);
+      const [ex, ey] = P(p.lam, rim), [rx, ry] = P(p.lam, real);
+      // craft heading almost the same way get their tags stacked, so they don't collide
+      const stack = live.slice(0, i).filter(([q]) => Math.abs(((q.lam - p.lam + 540) % 360) - 180) < 14).length;
+      if (inside) pos[key] = [rx, ry]; else { pos[key] = [ex, ey]; pos[rkey] = [rx, ry]; }
+      if (!STR) return;
+      const tagFont = `500 ${R > 220 ? 9 : 8}px 'Geist Mono', ui-monospace, monospace`;
+      if (!inside) {
+        // the rest of its way out, from the marker on the rim to where it is
+        g.setLineDash([2, 4]); g.strokeStyle = I.a(hov ? 0.5 : 0.14); g.lineWidth = 1;
+        g.beginPath(); g.moveTo(...P(p.lam, rim + 6)); g.lineTo(rx, ry); g.stroke(); g.setLineDash([]);
+        g.save(); g.translate(ex, ey); g.rotate(-p.lam * D2R);
+        g.fillStyle = I.a(hov ? 1 : 0.75); g.beginPath(); g.moveTo(5, 0); g.lineTo(-3, -3.2); g.lineTo(-1.2, 0); g.lineTo(-3, 3.2); g.closePath(); g.fill();
+        g.restore();
+        if (hov) { g.strokeStyle = I.a(0.9); ring(g, ex, ey, 8); g.stroke(); }
+        if (o.labels !== false) {
+          g.font = tagFont; g.fillStyle = I.a(hov ? 0.95 : 0.45); g.textAlign = 'center'; g.textBaseline = 'middle';
+          g.fillText(p.tag, ...P(p.lam, rim + 13 + stack * 10));
+        }
+      }
+      // where it really is
+      g.fillStyle = I.a(hov ? 1 : 0.85); g.beginPath(); g.arc(rx, ry, 2.4, 0, Math.PI * 2); g.fill();
+      g.strokeStyle = I.a(hov ? 0.9 : 0.4); g.lineWidth = 1; ring(g, rx, ry, hov ? 8 : 5); g.stroke();
+      if (o.labels !== false) {
+        g.font = tagFont; g.fillStyle = I.a(hov ? 0.95 : 0.6); g.textAlign = 'left'; g.textBaseline = 'middle';
+        g.fillText(`${hov ? p.n.toUpperCase() : p.tag} · ${Math.round(s.r)} AU`, rx + 9, ry + stack * 11);
+      }
     });
   }
 
   // trails: where each world was over the last few days to weeks, so you can see which way it is going
-  if (o.trails) {
+  if (MAT && o.trails) {
     g.lineCap = 'round';
     chart.bodies.forEach(b => {
       const step = Math.max(1.5, b.period * 0.009);
@@ -237,20 +275,25 @@ export function drawWheel(g, o) {
 
   // the Sun
   const sunR = Math.max(5, R * 0.022);
-  const glow = g.createRadialGradient(cx, cy, 0, cx, cy, sunR * 7);
-  glow.addColorStop(0, I.a(I.light ? 0.25 : 0.32)); glow.addColorStop(0.25, I.a(0.08)); glow.addColorStop(1, I.a(0));
-  g.fillStyle = glow; g.beginPath(); g.arc(cx, cy, sunR * 7, 0, Math.PI * 2); g.fill();
-  g.fillStyle = I.solid; g.beginPath(); g.arc(cx, cy, sunR, 0, Math.PI * 2); g.fill();
+  if (MAT) {
+    const gr = sunR * (split ? 16 : 7);
+    const glow = g.createRadialGradient(cx, cy, 0, cx, cy, gr);
+    glow.addColorStop(0, I.a(I.light ? 0.25 : split ? 0.42 : 0.32)); glow.addColorStop(split ? 0.1 : 0.25, I.a(split ? 0.1 : 0.08)); glow.addColorStop(1, I.a(0));
+    g.fillStyle = glow; g.beginPath(); g.arc(cx, cy, gr, 0, Math.PI * 2); g.fill();
+    g.fillStyle = I.solid; g.beginPath(); g.arc(cx, cy, sunR, 0, Math.PI * 2); g.fill();
+  } else {
+    g.fillStyle = I.solid; g.beginPath(); g.arc(cx, cy, sunR * 0.55, 0, Math.PI * 2); g.fill();
+  }
   const t = o.t || 0;
   g.strokeStyle = I.a(0.35); g.lineWidth = 1;
-  for (let i = 0; i < 12; i++) {
+  if (STR) for (let i = 0; i < 12; i++) {
     const a = i * 30 + t * 4;
     const [x0, y0] = P(a, sunR + 3), [x1, y1] = P(a, sunR + (i % 3 === 0 ? 7 : 5));
     g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke();
   }
 
   // the balance point of the whole system, which the Sun wobbles around (offset magnified so it shows)
-  if (o.bary !== false) {
+  if (STR && o.bary !== false) {
     const w = chart.wobble, mag = Math.min(w.dist / 0.012, 1) * Math.max(7, sunR * 2.2);
     const [bx, by] = P(w.lon, mag), hov = o.hover === 'BARY';
     g.strokeStyle = I.a(hov ? 1 : 0.6); g.lineWidth = 1;
@@ -264,17 +307,28 @@ export function drawWheel(g, o) {
     const [x, y] = pos[b.code];
     const isE = b.code === 'EAR', hov = o.hover === b.code, dim = o.focus && o.focus !== b.code && !isE;
     const r = Math.max(2.2, b.size * (R / 360) * 1.5);
-    g.fillStyle = I.bg; g.beginPath(); g.arc(x, y, r + 2.5, 0, Math.PI * 2); g.fill();
-    if (isE) {
-      g.fillStyle = I.solid; g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
-      g.strokeStyle = I.a(0.55); g.lineWidth = 1; ring(g, x, y, r + 5 + Math.sin(t * 2) * 0.8); g.stroke();
-    } else {
-      g.fillStyle = I.a(dim ? 0.35 : hov ? 1 : 0.82);
-      g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
-      if (b.code === 'SAT') { g.strokeStyle = I.a(dim ? 0.3 : 0.7); g.lineWidth = 1; g.beginPath(); g.ellipse(x, y, r + 4, (r + 4) * 0.36, -0.35, 0, Math.PI * 2); g.stroke(); }
+    if (MAT && split) {
+      // for the pixel field: each world as a soft glow, brighter at the core
+      const gr = g.createRadialGradient(x, y, 0, x, y, r * 3.6);
+      gr.addColorStop(0, I.a(dim ? 0.4 : 1)); gr.addColorStop(0.3, I.a(dim ? 0.15 : isE ? 0.5 : 0.35)); gr.addColorStop(1, I.a(0));
+      g.fillStyle = gr; g.beginPath(); g.arc(x, y, r * 3.6, 0, Math.PI * 2); g.fill();
+      if (b.code === 'SAT') { g.strokeStyle = I.a(dim ? 0.3 : 0.75); g.lineWidth = 1.4; g.beginPath(); g.ellipse(x, y, r + 4, (r + 4) * 0.36, -0.35, 0, Math.PI * 2); g.stroke(); }
+    } else if (MAT) {
+      g.fillStyle = I.bg; g.beginPath(); g.arc(x, y, r + 2.5, 0, Math.PI * 2); g.fill();
+      if (isE) { g.fillStyle = I.solid; g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill(); }
+      else {
+        g.fillStyle = I.a(dim ? 0.35 : hov ? 1 : 0.82);
+        g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
+        if (b.code === 'SAT') { g.strokeStyle = I.a(dim ? 0.3 : 0.7); g.lineWidth = 1; g.beginPath(); g.ellipse(x, y, r + 4, (r + 4) * 0.36, -0.35, 0, Math.PI * 2); g.stroke(); }
+      }
     }
-    if (hov || o.pin === b.code) { g.strokeStyle = I.a(0.9); g.lineWidth = 1; ring(g, x, y, r + 8); g.stroke(); }
-    if (o.labels !== false) {
+    if (STR && split) {
+      // a small crisp core, so the exact position stays readable over the field
+      g.fillStyle = isE ? I.solid : I.a(dim ? 0.4 : 0.92); g.beginPath(); g.arc(x, y, Math.max(1.3, r * (isE ? 0.6 : 0.45)), 0, Math.PI * 2); g.fill();
+    }
+    if (STR && isE) { g.strokeStyle = I.a(0.55); g.lineWidth = 1; ring(g, x, y, r + 5 + Math.sin(t * 2) * 0.8); g.stroke(); }
+    if (STR && (hov || o.pin === b.code)) { g.strokeStyle = I.a(0.9); g.lineWidth = 1; ring(g, x, y, r + 8); g.stroke(); }
+    if (STR && o.labels !== false) {
       g.font = `${isE ? 600 : 500} ${R > 220 ? 11 : 9.5}px 'Geist Mono', ui-monospace, monospace`;
       g.fillStyle = isE ? I.a(1) : I.a(dim ? 0.3 : 0.6);
       g.textAlign = 'left'; g.textBaseline = 'middle';
@@ -292,15 +346,14 @@ export function drawWheel(g, o) {
       const lit = o.hover === code || o.focus === code || mine(o.hover) || mine(o.pin);
       SYS[code].forEach((st, i) => {
         const Rm = hr + MOON_PX[code][i] * sc, key = `M:${code}:${i}`, me = o.hover === key || o.pin === key;
-        if (lit && (me || !(mine(o.hover) || mine(o.pin)))) {
+        if (STR && lit && (me || !(mine(o.hover) || mine(o.pin)))) {
           g.strokeStyle = I.a(0.28); g.lineWidth = 0.8; g.beginPath();
           for (let q = 0; q <= 48; q++) { const aa = q / 48 * Math.PI * 2, c = Math.cos(aa), sn = Math.sin(aa); const px = hx + (st.p1[0] * c + st.p2[0] * sn) * Rm, py = hy - (st.p1[1] * c + st.p2[1] * sn) * Rm; q ? g.lineTo(px, py) : g.moveTo(px, py); }
           g.stroke();
         }
         const mx = hx + st.v[0] * Rm, my = hy - st.v[1] * Rm;
-        g.fillStyle = I.a(lit ? 1 : 0.75);
-        g.beginPath(); g.arc(mx, my, MOON_DOT[code][i] * 0.75 * sc * (me ? 1.4 : 1), 0, Math.PI * 2); g.fill();
-        if (me) {
+        if (MAT) { g.fillStyle = I.a(lit ? 1 : 0.75); g.beginPath(); g.arc(mx, my, MOON_DOT[code][i] * 0.75 * sc * (me ? 1.4 : 1) * (split ? 1.5 : 1), 0, Math.PI * 2); g.fill(); }
+        if (STR && me) {
           g.strokeStyle = I.a(0.9); g.lineWidth = 1; ring(g, mx, my, 5); g.stroke();
           if (o.labels !== false) { g.font = "500 9px 'Geist Mono', ui-monospace, monospace"; g.fillStyle = I.a(0.95); g.textAlign = 'left'; g.textBaseline = 'middle'; g.fillText(MOON_NAMES[code][i].toUpperCase(), mx + 8, my - 6); }
         }

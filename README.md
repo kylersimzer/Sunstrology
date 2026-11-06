@@ -10,7 +10,7 @@ The astronomy is real orbital mechanics (JPL approximate Keplerian elements, J20
 
 ## What it does
 
-- **Today:** a daily solar weather report. Today's sky against your birth sky, Earth's station now, the Moon, and what's coming up.
+- **Today:** where every planet is right now, seen from the Sun. Add a birthday and it also measures the angles between today's planets and where they stood when you were born, alongside Earth's station now, the Moon, and what's coming up.
 - **Your birth chart:** your station, the shape your sky made, and a reading.
 - **Pair:** two skies overlaid, with a resonance score and every line between your worlds and theirs.
 - **Telescope:** the same sky in 3D that you can fly through, with Ride Earth and Stand on the Sun.
