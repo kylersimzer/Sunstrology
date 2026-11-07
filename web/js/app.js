@@ -5,6 +5,7 @@ import { STATIONS, ROMAN, WORLDS, PATTERNS, ASPECT_MEANING, patternText, natalRe
 import { drawWheel, sealSVG, stationSVG, drawPoster, radiusToAU, edgeSVG } from './wheel.js';
 import { createTelescope } from './telescope.js';
 import { createPixelField } from './pixel.js';
+import { createOrbitMenu } from './orbitmenu.js';
 import { WANDERERS, wandererAt, PROBES, probeAt, MOON_NOTES, climbing, nextPerihelion, moonFromKey, KIND } from './objects.js';
 
 const $ = id => document.getElementById(id);
@@ -336,7 +337,7 @@ let lastT = performance.now();
 function loop(now) {
   const dt = Math.min(0.1, (now - lastT) / 1000); lastT = now;
   S.t += dt;
-  const stage = !$('stageView').hidden;
+  const stage = !$('stageView').hidden && !orbitMenu.isOpen;   // nothing to draw under the menu
   if (S.zoomTo != null) {
     // a smooth zoom back toward the Sun (used when you click a spacecraft's marker)
     const e = Math.min(1, dt * 3.4);
@@ -802,6 +803,7 @@ document.addEventListener('click', e => {
   const p = active();
   switch (b.dataset.act) {
     case 'add': openPerson(); break;
+    case 'menu': orbitMenu.open(S.view, MARK()); break;
     case 'edit': openPerson(p); break;
     case 'poster': location.hash = '#/poster'; break;
     case 'share': copy(shareLink(p), 'Share link copied'); break;
@@ -832,6 +834,8 @@ document.addEventListener('keydown', e => {
   const k = e.key;
   const order = Object.keys(VIEWS);
   if (/^[1-7]$/.test(k)) { location.hash = '#/' + order[+k - 1]; return; }
+  if (k === 'm' || k === 'M') { orbitMenu.open(S.view, MARK()); return; }
+  if (k === 'i' || k === 'I') { orbitMenu.open(S.view, MARK(), { intro: true }); return; }
   if (!TIMED.includes(S.view)) return;
   if (S.view === 'telescope' && /^Arrow/.test(k)) return;
   if (k === ' ') { e.preventDefault(); togglePlay(); }
@@ -848,6 +852,61 @@ document.addEventListener('keydown', e => {
 });
 
 /* ---------- boot ---------- */
+/* ---------- the orbit menu: a second way round, drawn as a small solar system ---------- */
+// each world's live line: what is actually in that view right now, for whoever is selected
+const inkColor = () => `rgb(${getComputedStyle(document.documentElement).getPropertyValue('--ink').trim() || '236, 235, 230'})`;
+const LIVE = {
+  sky: () => {
+    const p = active(), now = chartAt(S.nowJd), lines = [`${fmtDay(new Date()).toUpperCase()} · EARTH IN ${STATIONS[now.station].name.toUpperCase()}`];
+    if (p) lines.unshift(`SOLAR WEATHER · ${solarWeather(natalOf(p), now).weather.name.toUpperCase()}`);
+    return { lines };
+  },
+  chart: () => {
+    const p = active(); if (!p) return { lines: ['ADD A BIRTHDAY TO SEE YOURS'] };
+    const c = natalOf(p);
+    return { lines: [`${p.name} · ${STATIONS[c.station].name}`, `STATION ${ROMAN[c.station]} · ${c.pattern}`], seal: sealSVG(c, { size: 40, stroke: inkColor() }) };
+  },
+  pair: () => {
+    const a = active(), b = pairPartner(); if (!a || !b) return { lines: ['ADD TWO BIRTHDAYS TO COMPARE'] };
+    const r = resonance(natalOf(a), natalOf(b));
+    return { lines: [`${a.name} + ${b.name}`, `RESONANCE ${r.score} / 100 · ${r.label}`] };
+  },
+  telescope: () => ({ lines: [`TODAY'S PATTERN · ${chartAt(S.nowJd).pattern}`], mini: 'orrery' }),
+  figures: () => {
+    const p = active(); if (!p) return { lines: ['EARTH MOVES 2.6 MILLION KM A DAY'] };
+    return { lines: [`${n0(orbitKm(personJd(p), jdFromDate(new Date())))} KM`, `ROUND THE SUN SINCE ${p.name} WAS BORN`] };
+  },
+  oracle: () => ({ lines: ['DAILY · NATAL · PAIR', active() ? 'YOUR DATA IS READY TO COPY' : 'ADD A BIRTHDAY FOR YOUR DATA'] }),
+  poster: () => {
+    const p = active(); if (!p) return { lines: ['ADD A BIRTHDAY TO PRINT YOURS'] };
+    return { lines: [`${p.name}'S SKY · BLACK OR PAPER`], seal: sealSVG(natalOf(p), { size: 40, stroke: inkColor() }) };
+  },
+};
+const orbitMenu = createOrbitMenu({
+  items: [
+    // each page rides a real planet: Earth now is Today, Earth on your birthday is your chart
+    { view: 'sky', name: 'Today', sub: 'Where the planets are now', planet: 'EAR' },
+    { view: 'chart', name: 'Your birth chart', sub: 'Your station · your shape', planet: 'EAR', ghost: true },
+    { view: 'pair', name: 'Pair', sub: 'Two skies · resonance', planet: 'VEN' },
+    { view: 'telescope', name: 'Telescope', sub: 'Fly through it in 3D', planet: 'MAR' },
+    { view: 'figures', name: 'Figures', sub: 'Every value, computed', planet: 'JUP' },
+    { view: 'oracle', name: 'Oracle', sub: 'Prompts for a reading', planet: 'MER' },
+    { view: 'poster', name: 'Poster', sub: 'Your sky as a print', planet: 'SAT' },
+  ].map(it => ({ ...it, live: LIVE[it.view] })),
+  birthJd: () => { const p = active(); return p ? personJd(p) : null; },
+  // arriving from the menu: the page comes in from slightly larger, as if the camera has just landed
+  onPick: view => {
+    const m = document.querySelector('.main'); m.classList.remove('arrive'); void m.offsetWidth; m.classList.add('arrive');
+    location.hash = '#/' + view; if (S.view === view) route();
+  },
+  onClose: ({ intro }) => { if (intro) { try { localStorage.setItem('sun.intro', '1'); } catch { } } },
+});
+// the front door: a first visit to the home page opens on the menu, with the Sun assembling
+function frontDoor() {
+  let seen = false; try { seen = !!localStorage.getItem('sun.intro'); } catch { }
+  const home = !location.hash || location.hash === '#/' || location.hash === '#/sky';
+  if (!seen && home && !S.guest) orbitMenu.open('sky', MARK(), { intro: true });
+}
 function boot() {
   applyTheme();
   setStyle(S.style);
@@ -858,5 +917,6 @@ function boot() {
   setInterval(() => { S.nowJd = jdFromDate(new Date()); }, 60000);
   route();
   requestAnimationFrame(loop);
+  frontDoor();
 }
 boot();
