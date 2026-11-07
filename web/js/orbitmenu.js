@@ -427,6 +427,7 @@ export function createOrbitMenu({ items, onPick, onClose, birthJd }) {
     S.current = current; S.open = true; S.intro = intro; S.dive = null; S.pin = -1; root.hidden = false; S.last = 0; S.hover = -1; S.t0 = S.t; S.liveFor = null; S.mouse = null;
     S.today = jdFromDate(new Date()); S.timeTo = null; setJd(S.today); S.sunAt = -9;
     root.classList.toggle('intro', intro); root.classList.remove('diving');
+    if (intro) root.classList.add('instant', 'on');   // the front door is there from the first frame, no fade
     root.querySelector('.omenu-close .lbl').textContent = intro ? 'SKIP' : 'CLOSE';
     size();
     const i = Math.max(0, items.findIndex(it => it.view === current)); S.sel = i; S.wheelAcc = 0; bring(i); S.yaw = S.target - (intro ? 1.6 : 0.9);
@@ -435,7 +436,7 @@ export function createOrbitMenu({ items, onPick, onClose, birthJd }) {
   }
   function close(quick = false) {
     const wasIntro = S.intro;
-    S.open = false; S.intro = false; root.classList.remove('on');
+    S.open = false; S.intro = false; root.classList.remove('instant'); void root.offsetWidth; root.classList.remove('on');
     audio.wasOn = audio.on; if (audio.on) stopSound();     // fade out, and pick up again next time it opens
     if (quick) root.classList.add('quick');
     setTimeout(() => { if (!S.open) { root.hidden = true; root.classList.remove('quick', 'diving', 'intro'); } }, quick ? 120 : 220);

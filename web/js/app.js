@@ -906,6 +906,8 @@ function frontDoor() {
   let seen = false; try { seen = !!localStorage.getItem('sun.intro'); } catch { }
   const home = !location.hash || location.hash === '#/' || location.hash === '#/sky';
   if (!seen && home && !S.guest) orbitMenu.open('sky', MARK(), { intro: true });
+  // the menu now covers the page (or there's no intro), so the page can be shown
+  requestAnimationFrame(() => document.documentElement.classList.remove('intro-pending'));
 }
 function boot() {
   applyTheme();

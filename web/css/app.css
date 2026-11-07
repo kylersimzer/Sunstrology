@@ -254,6 +254,8 @@ table.t tr:last-child td { border-bottom: 0; }
 .toast.on { opacity: 1; transform: translate(-50%, 0); }
 
 /* ---------- the orbit menu ---------- */
+html.intro-pending .app { visibility: hidden; }
+.omenu.instant { transition: none; }
 .omenu-open kbd { margin-left: 4px; font: 400 var(--fs-micro) var(--mono); color: var(--fg-4); }
 .omenu-open svg { margin-right: 2px; }
 .omenu { position: fixed; inset: 0; z-index: 60; background: var(--bg); opacity: 0; transition: opacity 0.22s var(--ease); }

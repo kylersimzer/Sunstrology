@@ -23,6 +23,10 @@
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/tokens.css">
   <link rel="stylesheet" href="css/app.css">
+  <script>
+    // before anything paints: if the front-door intro is going to play, keep the page hidden so it can't flash first
+    try { var h = location.hash; if (!localStorage.getItem('sun.intro') && (!h || h === '#/' || h === '#/sky')) document.documentElement.classList.add('intro-pending'); } catch (e) { }
+  </script>
 </head>
 <body>
 <div class="app" id="app">
